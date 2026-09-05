@@ -1,14 +1,17 @@
 # FitPulse
 
 # 🏋️‍♂️ Why I Built My Own AI Fitness Tracker (And Canceled My $15/mo Subscription).
-Paying $180 a year just to log my bench press and basic workouts felt wrong—especially as an AI Engineer.
+Paying $180 a year just to log my bench press and basic workouts felt wrong especially as an AI Engineer.
 
 Like many of us trying to stay in shape, I used popular fitness apps to track my sets, reps, and gym progress. But month after month, seeing that $15/month charge on my credit card statement started to bug me.
 Paying a recurring fee just to store my own workout history felt unnecessary. I didn't want bloated feature sets, paywalled basic analytics, or third-party servers tracking my daily routines. I wanted:
 
--Zero monthly fees.
+-Zero monthly fees
+
 -Total **privacy** & data ownership.
+
 -Full customization to fit my exact training split.
+
 -Smart, lightweight AI features without the corporate bloat.
 
 As an AI Engineer, I realized the solution was simple: Stop paying for what I can build.

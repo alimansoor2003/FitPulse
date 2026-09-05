@@ -21,67 +21,14 @@ class SettingsScreen extends ConsumerWidget {
     WidgetRef ref,
     String current,
   ) async {
-    final TextEditingController controller =
-        TextEditingController(text: current);
     final String? name = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xCC050A14),
       isScrollControlled: true,
-      builder: (BuildContext context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
-          ),
-          child: GlassCard(
-            radius: 28,
-            opaque: true,
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-            highlighted: true,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('Your name', style: AppText.title),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.glassFill,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.glassBorder),
-                  ),
-                  child: TextField(
-                    controller: controller,
-                    autofocus: true,
-                    textCapitalization: TextCapitalization.words,
-                    style: sora(15, 600),
-                    cursorColor: AppColors.neonCyan,
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    onSubmitted: (String value) =>
-                        Navigator.of(context).pop(value),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                NeonButton(
-                  label: 'SAVE',
-                  height: 48,
-                  onPressed: () =>
-                      Navigator.of(context).pop(controller.text),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (BuildContext context) => _NameSheet(initialName: current),
     );
 
-    controller.dispose();
     if (name != null) {
       await ref.read(settingsProvider.notifier).setName(name);
     }
@@ -584,6 +531,83 @@ class _ActionRow extends StatelessWidget {
               color: AppColors.textTertiary,
               size: 20,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The name editor shown as a modal sheet.
+///
+/// This owns its [TextEditingController] so the controller lives exactly as
+/// long as the field that uses it. Creating it in the caller and disposing it
+/// as soon as `showModalBottomSheet` returned meant it died while the sheet
+/// was still animating out - the still-mounted TextField then rebuilt against
+/// a disposed controller, which surfaced as a full red error screen.
+class _NameSheet extends StatefulWidget {
+  const _NameSheet({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_NameSheet> createState() => _NameSheetState();
+}
+
+class _NameSheetState extends State<_NameSheet> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialName);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.of(context).pop(_controller.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+      ),
+      child: GlassCard(
+        radius: 28,
+        opaque: true,
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+        highlighted: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Your name', style: AppText.title),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: AppColors.glassFill,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.glassBorder),
+              ),
+              child: TextField(
+                controller: _controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.done,
+                style: sora(15, 600),
+                cursorColor: AppColors.neonCyan,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 16),
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+            ),
+            const SizedBox(height: 18),
+            NeonButton(label: 'SAVE', height: 48, onPressed: _submit),
           ],
         ),
       ),

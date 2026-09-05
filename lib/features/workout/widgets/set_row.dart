@@ -312,15 +312,24 @@ class _CheckButton extends StatelessWidget {
                 ? Colors.transparent
                 : AppColors.glassBorder,
           ),
-          boxShadow: done
-              ? <BoxShadow>[
-                  BoxShadow(
-                    color: AppColors.neonGreen.withOpacity(0.35),
-                    blurRadius: 16,
-                    spreadRadius: -4,
-                  ),
-                ]
-              : null,
+          // Both states carry a shadow of identical geometry and differ only
+          // in colour, so the transition interpolates colour alone.
+          //
+          // Animating a shadow to/from null instead makes BoxShadow.lerp
+          // scale it by (1 - t), and Curves.easeOutBack overshoots past 1.0 -
+          // driving that factor negative. BoxShadow extends ui.Shadow, whose
+          // constructor asserts blurRadius >= 0, so un-completing a set threw
+          // inside dart:ui/painting.dart and Flutter replaced the row with a
+          // red error box.
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: done
+                  ? AppColors.neonGreen.withOpacity(0.35)
+                  : Colors.transparent,
+              blurRadius: 16,
+              spreadRadius: -4,
+            ),
+          ],
         ),
         child: Icon(
           Icons.check_rounded,

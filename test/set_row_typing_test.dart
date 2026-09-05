@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 ///   2. A write that landed after the next character was typed came back
 ///      stale and overwrote the field, so characters visibly reverted.
 void main() {
+  _checkmarkAnimation();
   SetLog log({double weightKg = 0, int reps = 0}) => SetLog(
         id: 1,
         sessionId: 1,
@@ -115,5 +116,57 @@ void main() {
       tester.widget<TextField>(find.byType(TextField).first).controller!.text,
       '77.5',
     );
+  });
+}
+
+/// Regression test for the red error box that appeared when tapping a set's
+/// checkmark while it was green (i.e. un-completing it).
+///
+/// The check button animates with Curves.easeOutBack, which overshoots past
+/// 1.0. Lerping a BoxShadow *away* (to null) scales it by (1.0 - t), so an
+/// overshooting t makes that factor negative - and BoxShadow extends
+/// ui.Shadow, whose constructor asserts blurRadius >= 0. The overshoot frame
+/// therefore threw inside dart:ui/painting.dart and Flutter swapped the row
+/// for an ErrorWidget.
+void _checkmarkAnimation() {
+  testWidgets('un-completing a set does not throw during the animation', (
+    WidgetTester tester,
+  ) async {
+    SetLog log({required bool completed}) => SetLog(
+          id: 1,
+          sessionId: 1,
+          exerciseId: 1,
+          setIndex: 1,
+          weightKg: 40,
+          reps: 8,
+          completed: completed,
+          updatedAt: DateTime(2026, 1, 1),
+        );
+
+    Widget row(bool completed) => MaterialApp(
+          home: Scaffold(
+            body: SetRow(
+              log: log(completed: completed),
+              ghost: null,
+              onWeightChanged: (_) {},
+              onRepsChanged: (_) {},
+              onToggle: () {},
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(row(true));
+    await tester.pumpAndSettle();
+
+    // Green -> not green: this is the frame range that used to assert.
+    await tester.pumpWidget(row(false));
+    for (int i = 0; i < 16; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'frame ${i + 1} of the un-check animation threw',
+      );
+    }
   });
 }

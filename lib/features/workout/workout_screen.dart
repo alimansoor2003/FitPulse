@@ -93,6 +93,18 @@ class WorkoutScreen extends ConsumerWidget {
       orElse: () => const <SetLog>[],
     );
 
+    // Bucket the session's sets by exercise in one pass. Filtering and
+    // sorting per exercise inside the list builder repeated that work for
+    // every card on every rebuild - including each frame of the keyboard
+    // animation.
+    final Map<int, List<SetLog>> logsByExercise = <int, List<SetLog>>{};
+    for (final SetLog l in logs) {
+      (logsByExercise[l.exerciseId] ??= <SetLog>[]).add(l);
+    }
+    for (final List<SetLog> rows in logsByExercise.values) {
+      rows.sort((SetLog a, SetLog b) => a.setIndex.compareTo(b.setIndex));
+    }
+
     final int doneSets = logs.where((SetLog l) => l.completed).length;
     final bool hasLoggedData = logs.any(
       (SetLog l) => l.completed || l.weightKg > 0 || l.reps > 0,
@@ -133,17 +145,13 @@ class WorkoutScreen extends ConsumerWidget {
                     else
                       ...List<Widget>.generate(exercises.length, (int i) {
                         final Exercise exercise = exercises[i];
-                        final List<SetLog> forExercise = logs
-                            .where((SetLog l) => l.exerciseId == exercise.id)
-                            .toList()
-                          ..sort((SetLog a, SetLog b) =>
-                              a.setIndex.compareTo(b.setIndex));
                         return FadeIn(
                           delay: Duration(milliseconds: 60 + i * 40),
                           child: ExerciseCard(
                             exercise: exercise,
                             sessionId: sessionId,
-                            logs: forExercise,
+                            logs: logsByExercise[exercise.id] ??
+                                const <SetLog>[],
                           ),
                         );
                       }),
@@ -155,7 +163,7 @@ class WorkoutScreen extends ConsumerWidget {
                   20,
                   0,
                   20,
-                  12 + MediaQuery.of(context).padding.bottom,
+                  12 + MediaQuery.paddingOf(context).bottom,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -222,7 +230,28 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _SessionMeter extends ConsumerWidget {
+/// Just the elapsed-time readout.
+///
+/// The per-second clock is watched here rather than in [_SessionMeter] so a
+/// tick only rebuilds this one line of text - not the whole card with its
+/// gauge and ring painters.
+class _DurationReadout extends ConsumerWidget {
+  const _DurationReadout({required this.startedAt});
+
+  final DateTime startedAt;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(clockProvider);
+    return _Metric(
+      icon: Icons.schedule_rounded,
+      label: 'Duration',
+      value: formatDuration(DateTime.now().difference(startedAt)),
+    );
+  }
+}
+
+class _SessionMeter extends StatelessWidget {
   const _SessionMeter({
     required this.progress,
     required this.doneSets,
@@ -238,11 +267,7 @@ class _SessionMeter extends ConsumerWidget {
   final DateTime startedAt;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Rebuilds once per second so the elapsed time stays live.
-    ref.watch(clockProvider);
-    final Duration elapsed = DateTime.now().difference(startedAt);
-
+  Widget build(BuildContext context) {
     return GlassCard(
       highlighted: true,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
@@ -298,13 +323,7 @@ class _SessionMeter extends ConsumerWidget {
           const SizedBox(height: 12),
           Row(
             children: <Widget>[
-              Expanded(
-                child: _Metric(
-                  icon: Icons.schedule_rounded,
-                  label: 'Duration',
-                  value: formatDuration(elapsed),
-                ),
-              ),
+              Expanded(child: _DurationReadout(startedAt: startedAt)),
               const SizedBox(width: 12),
               Expanded(
                 child: _Metric(

@@ -11,6 +11,11 @@ void main() {
     test('keeps one decimal for plates', () {
       expect(formatWeight(42.5), '42.5');
     });
+
+    test('keeps the quarter on a 1.25 kg plate', () {
+      expect(formatWeight(1.25), '1.25');
+      expect(formatWeight(21.25), '21.25');
+    });
   });
 
   group('formatVolume', () {

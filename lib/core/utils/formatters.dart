@@ -2,8 +2,11 @@ import 'package:intl/intl.dart';
 
 String formatWeight(double kg) {
   if (kg <= 0) return '0';
-  final bool whole = kg == kg.roundToDouble();
-  return whole ? kg.toStringAsFixed(0) : kg.toStringAsFixed(1);
+  if (kg == kg.roundToDouble()) return kg.toStringAsFixed(0);
+  // Two decimals, trailing zero trimmed: 42.5 stays "42.5" while a 1.25 kg
+  // plate stays "1.25" instead of being rounded to a misleading "1.3".
+  final String value = kg.toStringAsFixed(2);
+  return value.endsWith('0') ? value.substring(0, value.length - 1) : value;
 }
 
 /// 12,450 kg -> "12.4k kg"

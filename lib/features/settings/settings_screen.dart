@@ -33,7 +33,7 @@ class SettingsScreen extends ConsumerWidget {
           padding: EdgeInsets.only(
             left: 16,
             right: 16,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
           ),
           child: GlassCard(
             radius: 28,
@@ -96,7 +96,7 @@ class SettingsScreen extends ConsumerWidget {
     return ListView(
       padding: EdgeInsets.fromLTRB(
         20,
-        MediaQuery.of(context).padding.top + 18,
+        MediaQuery.paddingOf(context).top + 18,
         20,
         120,
       ),

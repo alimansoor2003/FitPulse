@@ -22,13 +22,17 @@ class FitPulseApp extends ConsumerWidget {
       themeMode: ThemeMode.dark,
       builder: (BuildContext context, Widget? child) {
         // Keep the layout stable regardless of the device font scale.
-        final MediaQueryData media = MediaQuery.of(context);
-        return MediaQuery(
-          data: media.copyWith(
-            textScaler: TextScaler.linear(
-              media.textScaler.scale(1).clamp(0.9, 1.15),
-            ),
-          ),
+        //
+        // This must depend on the text scale *only*. Reading the whole
+        // MediaQueryData here (MediaQuery.of) subscribed the entire app to
+        // every MediaQuery change - including viewInsets, which ticks on
+        // every frame the soft keyboard animates. That rebuilt the whole
+        // tree from the root each frame and made tapping into a field feel
+        // slow. withClampedTextScaling depends on the textScaler aspect
+        // alone, so the keyboard no longer rebuilds anything up here.
+        return MediaQuery.withClampedTextScaling(
+          minScaleFactor: 0.9,
+          maxScaleFactor: 1.15,
           child: child ?? const SizedBox.shrink(),
         );
       },

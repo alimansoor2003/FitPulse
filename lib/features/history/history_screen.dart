@@ -42,7 +42,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return ListView(
       padding: EdgeInsets.fromLTRB(
         20,
-        MediaQuery.of(context).padding.top + 18,
+        MediaQuery.paddingOf(context).top + 18,
         20,
         120,
       ),

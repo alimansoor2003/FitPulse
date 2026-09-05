@@ -57,7 +57,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   padding: EdgeInsets.only(
                     left: 16,
                     right: 16,
-                    bottom: 16 + MediaQuery.of(context).viewInsets.bottom * 0.2,
+                    bottom: 16 + MediaQuery.viewInsetsOf(context).bottom * 0.2,
                   ),
                   child: GlassCard(
                     radius: 30,

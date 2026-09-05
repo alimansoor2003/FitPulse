@@ -1,0 +1,46 @@
+name: fitpulse
+description: "FitPulse - a dark, glassmorphic strength-training tracker with progressive overload logging."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.4.0
+
+  # Local database (SQLite)
+  drift: ^2.14.0
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.0
+  path: ^1.8.0
+
+  # Charts
+  fl_chart: '>=0.66.0 <2.0.0'
+
+  # Lightweight key/value settings
+  shared_preferences: ^2.2.0
+
+  intl: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  build_runner: ^2.4.0
+  drift_dev: ^2.14.0
+  flutter_lints: '>=3.0.0 <7.0.0'
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    - family: Sora
+      fonts:
+        - asset: assets/fonts/Sora.ttf
+    - family: Cairo
+      fonts:
+        - asset: assets/fonts/Cairo.ttf

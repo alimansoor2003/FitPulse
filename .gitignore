@@ -1,0 +1,28 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Generated code (run: dart run build_runner build)
+*.g.dart
+
+# IDE
+*.iml
+.idea/
+.vscode/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# Signing / secrets - never commit these
+*.jks
+*.keystore
+key.properties
+*.p12
+.env

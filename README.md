@@ -1,4 +1,5 @@
 # FitPulse
+<img width="220" height="163" alt="bh187-family-guy" src="https://github.com/user-attachments/assets/c78a8bcb-1f0b-4c66-8bb2-6ec5e0ee2a2c" />
 
 # 🏋️‍♂️ Why I Built My Own AI Fitness Tracker (And Canceled My $15/mo Subscription).
 Paying $180 a year just to log my bench press and basic workouts felt wrong especially as an AI Engineer.

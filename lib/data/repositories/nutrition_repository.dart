@@ -10,8 +10,9 @@ class NutritionRepository {
 
   final AppDatabase db;
 
-  Stream<List<FoodLog>> watchTodayFoodLogs() => db.watchTodayFoodLogs();
-
+  /// Deliberately day-keyed rather than a "today" helper: a stream resolves
+  /// its window once, so a long-lived subscriber has to be handed the day and
+  /// re-subscribed when it changes. See `currentDayProvider`.
   Stream<List<FoodLog>> watchFoodLogsForDay(DateTime day) =>
       db.watchFoodLogsForDay(day);
 

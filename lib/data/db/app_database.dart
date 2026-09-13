@@ -325,6 +325,12 @@ class AppDatabase extends _$AppDatabase {
         .watch();
   }
 
+  /// One-shot convenience only.
+  ///
+  /// This pins the window to the moment it is called, so a subscription held
+  /// open across midnight keeps reporting the old day. Anything long-lived
+  /// must call [watchFoodLogsForDay] and re-subscribe when the day changes -
+  /// `currentDayProvider` is what drives that.
   Stream<List<FoodLog>> watchTodayFoodLogs() =>
       watchFoodLogsForDay(DateTime.now());
 

@@ -16,6 +16,7 @@ import '../../data/db/seed_data.dart';
 import '../../domain/models.dart';
 import '../../state/providers.dart';
 import '../../state/settings_controller.dart';
+import '../nutrition/widgets/macro_summary_card.dart';
 import '../workout/workout_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -116,6 +117,13 @@ class HomeScreen extends ConsumerWidget {
             stats: stats,
             onNewSession: () => _openDay(context, ref, selectedDay),
           ),
+        ),
+        const SizedBox(height: 24),
+
+        const SectionHeader(title: 'Nutrition Today'),
+        const FadeIn(
+          delay: Duration(milliseconds: 110),
+          child: MacroSummaryCard(),
         ),
         const SizedBox(height: 24),
 

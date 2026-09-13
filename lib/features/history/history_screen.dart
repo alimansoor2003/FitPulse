@@ -194,6 +194,16 @@ class _SummaryTile extends StatelessWidget {
 class _ConsistencyStrip extends StatelessWidget {
   const _ConsistencyStrip({required this.weeks, required this.goal});
 
+  /// Tall enough for the two labels plus a bar of roughly the old 46px at
+  /// the default font scale. It is only a look-and-feel number now - the bar
+  /// flexes, so this can no longer be the cause of an overflow.
+  static const double _stripHeight = 86;
+
+  /// How much of the bar track a zero-session week still fills, so an empty
+  /// week reads as an empty slot rather than as nothing at all. Matches the
+  /// 12px floor the fixed-height version used against its 46px maximum.
+  static const double _minBarFraction = 0.26;
+
   final List<WeeklyLoad> weeks;
   final int goal;
 
@@ -207,7 +217,7 @@ class _ConsistencyStrip extends StatelessWidget {
           Text('Last ${weeks.length} weeks', style: AppText.caption),
           const SizedBox(height: 14),
           SizedBox(
-            height: 74,
+            height: _stripHeight,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: weeks.map((WeeklyLoad w) {
@@ -217,29 +227,40 @@ class _ConsistencyStrip extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
                       children: <Widget>[
                         Text('${w.sessions}', style: AppText.caption),
                         const SizedBox(height: 5),
-                        TweenAnimationBuilder<double>(
-                          tween: Tween<double>(begin: 0, end: ratio),
-                          duration: const Duration(milliseconds: 600),
-                          curve: Curves.easeOutCubic,
-                          builder: (BuildContext context, double value,
-                              Widget? _) {
-                            return Container(
-                              height: 12 + 34 * value,
-                              decoration: BoxDecoration(
-                                gradient: value > 0
-                                    ? AppColors.accentGradient
-                                    : null,
-                                color: value > 0
-                                    ? null
-                                    : Colors.white.withOpacity(0.06),
-                                borderRadius: BorderRadius.circular(7),
-                              ),
-                            );
-                          },
+                        // The bar takes whatever height is left once the two
+                        // labels have been measured, instead of adding a
+                        // fixed 46px on top of them. That is what keeps the
+                        // column inside its box: a bigger font (the app
+                        // allows up to 1.15x) shortens the bar rather than
+                        // pushing the date label out of the bottom.
+                        Expanded(
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween<double>(begin: 0, end: ratio),
+                            duration: const Duration(milliseconds: 600),
+                            curve: Curves.easeOutCubic,
+                            builder: (BuildContext context, double value,
+                                Widget? _) {
+                              return FractionallySizedBox(
+                                alignment: Alignment.bottomCenter,
+                                heightFactor: _minBarFraction +
+                                    (1 - _minBarFraction) * value,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: value > 0
+                                        ? AppColors.accentGradient
+                                        : null,
+                                    color: value > 0
+                                        ? null
+                                        : Colors.white.withOpacity(0.06),
+                                    borderRadius: BorderRadius.circular(7),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(

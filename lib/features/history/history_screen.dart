@@ -12,6 +12,7 @@ import '../../data/db/app_database.dart';
 import '../../data/db/seed_data.dart';
 import '../../domain/models.dart';
 import '../../state/providers.dart';
+import '../nutrition/widgets/nutrition_trend_card.dart';
 import 'widgets/session_detail_sheet.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -79,6 +80,13 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         FadeIn(
           delay: const Duration(milliseconds: 140),
           child: _VolumeChartCard(sessions: sessions),
+        ),
+        const SizedBox(height: 24),
+
+        const SectionHeader(title: 'Nutrition Trends'),
+        const FadeIn(
+          delay: Duration(milliseconds: 160),
+          child: NutritionTrendCard(),
         ),
         const SizedBox(height: 24),
 

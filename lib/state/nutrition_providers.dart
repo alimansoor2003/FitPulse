@@ -123,6 +123,31 @@ final Provider<DailyMacros> todayMacrosProvider = Provider<DailyMacros>((ref) {
   );
 });
 
+// ------------------------------------------------------------------ trends
+
+/// How many days back the nutrition trend covers. 7 or 30.
+final StateProvider<int> nutritionRangeProvider = StateProvider<int>((ref) => 7);
+
+/// Daily totals and averages over the last [nutritionRangeProvider] days,
+/// ending today.
+///
+/// Keyed on [currentDayProvider] like the today query, so the window follows
+/// the calendar rather than being frozen when the screen first opened.
+final StreamProvider<NutritionTrend> nutritionTrendProvider =
+    StreamProvider<NutritionTrend>((ref) {
+  final DateTime today = ref.watch(currentDayProvider);
+  final int days = ref.watch(nutritionRangeProvider);
+  final NutritionRepository repo = ref.watch(nutritionRepositoryProvider);
+
+  final DateTime start =
+      DateTime(today.year, today.month, today.day - (days - 1));
+  final DateTime end = DateTime(today.year, today.month, today.day + 1);
+
+  return repo
+      .watchFoodLogsBetween(start, end)
+      .map((List<FoodLog> logs) => repo.trendFrom(logs, from: start, days: days));
+});
+
 // --------------------------------------------------------------- controller
 
 /// The logger's phases. [FoodLogController] moves through

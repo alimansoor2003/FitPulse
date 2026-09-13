@@ -1,10 +1,14 @@
 import 'package:fitpulse/data/db/app_database.dart';
 import 'package:fitpulse/domain/models.dart';
+import 'package:fitpulse/domain/nutrition.dart';
 import 'package:fitpulse/features/history/history_screen.dart';
+import 'package:fitpulse/state/nutrition_providers.dart';
 import 'package:fitpulse/state/providers.dart';
+import 'package:fitpulse/state/settings_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Regression test for the "BOTTOM OVERFLOWED BY 12 PIXELS" banner on the
 /// Progress screen's Weekly Consistency strip.
@@ -42,6 +46,9 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    SharedPreferences.setMockInitialValues(<String, Object>{'onboarded': true});
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[
@@ -62,6 +69,12 @@ void main() {
             ),
           ),
           allExercisesProvider.overrideWith((Ref ref) async => <Exercise>[]),
+          // The screen also carries the nutrition trend card now; stub it so
+          // this stays a layout test and never reaches SQLite.
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          nutritionTrendProvider.overrideWith(
+            (Ref ref) => Stream<NutritionTrend>.value(NutritionTrend.empty),
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(

@@ -331,6 +331,25 @@ class AppDatabase extends _$AppDatabase {
   /// open across midnight keeps reporting the old day. Anything long-lived
   /// must call [watchFoodLogsForDay] and re-subscribe when the day changes -
   /// `currentDayProvider` is what drives that.
+  /// Every food log in [start, end), oldest first.
+  ///
+  /// Rows are returned raw and bucketed into days in Dart rather than grouped
+  /// in SQL. A GROUP BY would need SQLite's 'localtime' modifier to land rows
+  /// on the right calendar day, and the volumes here are small - a month is a
+  /// few hundred rows - so the pure-Dart roll-up in NutritionRepository is
+  /// both simpler and testable without a database.
+  Stream<List<FoodLog>> watchFoodLogsBetween(DateTime start, DateTime end) {
+    return (select(foodLogs)
+          ..where((t) =>
+              t.loggedAt.isBiggerOrEqualValue(start) &
+              t.loggedAt.isSmallerThanValue(end))
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.loggedAt),
+            (t) => OrderingTerm.asc(t.id),
+          ]))
+        .watch();
+  }
+
   Stream<List<FoodLog>> watchTodayFoodLogs() =>
       watchFoodLogsForDay(DateTime.now());
 

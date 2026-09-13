@@ -159,6 +159,68 @@ class DailyMacros {
   }
 }
 
+/// One calendar day's nutrition, rolled up from its food logs.
+///
+/// A day with nothing logged is still present in a trend, as a zero row, so
+/// the chart shows the gap instead of silently closing it up.
+class DailyNutrition {
+  const DailyNutrition({
+    required this.day,
+    required this.calories,
+    required this.proteinG,
+    required this.carbsG,
+    required this.fatG,
+    required this.itemCount,
+  });
+
+  /// Local midnight of the day this covers.
+  final DateTime day;
+  final int calories;
+  final double proteinG;
+  final double carbsG;
+  final double fatG;
+  final int itemCount;
+
+  bool get isLogged => itemCount > 0;
+}
+
+/// A window of days, plus the averages worth reading off it.
+class NutritionTrend {
+  const NutritionTrend({
+    required this.days,
+    required this.average,
+    required this.daysLogged,
+  });
+
+  /// One entry per calendar day in the window, oldest first.
+  final List<DailyNutrition> days;
+
+  /// Averaged across the days that actually have food on them.
+  ///
+  /// Dividing by the whole window instead would quietly halve your intake
+  /// after a couple of days of not logging, which reads as a diet rather than
+  /// as missing data - so [daysLogged] is reported next to it.
+  final DailyMacros average;
+
+  final int daysLogged;
+
+  int get dayCount => days.length;
+
+  bool get isEmpty => daysLogged == 0;
+
+  /// Highest single-day calories in the window, for scaling a chart.
+  int get peakCalories => days.fold<int>(
+        0,
+        (int best, DailyNutrition d) => d.calories > best ? d.calories : best,
+      );
+
+  static const NutritionTrend empty = NutritionTrend(
+    days: <DailyNutrition>[],
+    average: DailyMacros.empty,
+    daysLogged: 0,
+  );
+}
+
 /// The daily goals the summary card fills against, editable in Settings.
 class MacroTargets {
   const MacroTargets({

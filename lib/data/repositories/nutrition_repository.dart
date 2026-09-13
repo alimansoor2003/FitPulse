@@ -36,6 +36,89 @@ class NutritionRepository {
     ]);
   }
 
+  Stream<List<FoodLog>> watchFoodLogsBetween(DateTime start, DateTime end) =>
+      db.watchFoodLogsBetween(start, end);
+
+  /// Buckets [logs] into one row per calendar day, starting at [from] and
+  /// running for [days] days.
+  ///
+  /// Pure, so the bucketing - which is where the off-by-one and timezone
+  /// mistakes live - is testable without a database. Days with nothing logged
+  /// come back as zero rows so a gap stays visible in the chart.
+  NutritionTrend trendFrom(
+    List<FoodLog> logs, {
+    required DateTime from,
+    required int days,
+  }) {
+    if (days <= 0) return NutritionTrend.empty;
+
+    final DateTime start = DateTime(from.year, from.month, from.day);
+    final Map<DateTime, List<FoodLog>> byDay = <DateTime, List<FoodLog>>{};
+    for (final FoodLog log in logs) {
+      final DateTime day = DateTime(
+        log.loggedAt.year,
+        log.loggedAt.month,
+        log.loggedAt.day,
+      );
+      byDay.putIfAbsent(day, () => <FoodLog>[]).add(log);
+    }
+
+    final List<DailyNutrition> rows = <DailyNutrition>[];
+    int loggedDays = 0;
+    int calories = 0;
+    double protein = 0;
+    double carbs = 0;
+    double fat = 0;
+
+    for (int i = 0; i < days; i++) {
+      // Adding to the date fields rather than adding a Duration keeps the
+      // step on calendar days: a 24-hour Duration lands on the wrong day
+      // across a daylight-saving change.
+      final DateTime day = DateTime(start.year, start.month, start.day + i);
+      final List<FoodLog> forDay = byDay[day] ?? const <FoodLog>[];
+      final DailyMacros totals = DailyMacros.from(forDay);
+
+      rows.add(
+        DailyNutrition(
+          day: day,
+          calories: totals.calories,
+          proteinG: totals.proteinG,
+          carbsG: totals.carbsG,
+          fatG: totals.fatG,
+          itemCount: totals.itemCount,
+        ),
+      );
+
+      if (totals.itemCount > 0) {
+        loggedDays++;
+        calories += totals.calories;
+        protein += totals.proteinG;
+        carbs += totals.carbsG;
+        fat += totals.fatG;
+      }
+    }
+
+    if (loggedDays == 0) {
+      return NutritionTrend(
+        days: rows,
+        average: DailyMacros.empty,
+        daysLogged: 0,
+      );
+    }
+
+    return NutritionTrend(
+      days: rows,
+      average: DailyMacros(
+        calories: (calories / loggedDays).round(),
+        proteinG: protein / loggedDays,
+        carbsG: carbs / loggedDays,
+        fatG: fat / loggedDays,
+        itemCount: loggedDays,
+      ),
+      daysLogged: loggedDays,
+    );
+  }
+
   Future<void> deleteFoodLog(int id) => db.deleteFoodLog(id);
 
   Future<void> clearFoodLogs() => db.clearFoodLogs();

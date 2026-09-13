@@ -44,3 +44,23 @@ class SetLogs extends Table {
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
 }
+
+/// One food item eaten at a point in time.
+///
+/// Rows land here either from the AI parser (which turns a sentence into a
+/// list of items) or from the manual entry form - the table itself does not
+/// record which, because an item is an item once it has been reviewed.
+class FoodLogs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Breakfast / Lunch / Dinner / Snack, stored as text so the column stays
+  /// readable in a raw SQLite dump. Parsed back through `MealType.fromLabel`,
+  /// which falls back to Snack for anything unrecognised.
+  TextColumn get mealType => text().withLength(min: 1, max: 16)();
+  TextColumn get name => text().withLength(min: 1, max: 120)();
+  IntColumn get calories => integer().withDefault(const Constant(0))();
+  RealColumn get proteinG => real().withDefault(const Constant(0))();
+  RealColumn get carbsG => real().withDefault(const Constant(0))();
+  RealColumn get fatG => real().withDefault(const Constant(0))();
+  DateTimeColumn get loggedAt => dateTime().withDefault(currentDateAndTime)();
+}

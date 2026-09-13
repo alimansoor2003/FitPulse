@@ -11,20 +11,28 @@ import 'tables.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: <Type>[Exercises, WorkoutSessions, SetLogs])
+@DriftDatabase(tables: <Type>[Exercises, WorkoutSessions, SetLogs, FoodLogs])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   /// In-memory constructor for tests.
   AppDatabase.withExecutor(QueryExecutor executor) : super(executor);
 
+  /// v1 -> v2 added [foodLogs] for the nutrition feature.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
+        },
+        onUpgrade: (Migrator m, int from, int to) async {
+          // Additive only: an install that already holds real training data
+          // just gains the new table, nothing is recreated or dropped.
+          if (from < 2) {
+            await m.createTable(foodLogs);
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           await customStatement('PRAGMA foreign_keys = ON');
@@ -293,6 +301,46 @@ class AppDatabase extends _$AppDatabase {
         volumeKg: (data['volume'] as num?)?.toDouble() ?? 0,
       );
     }).toList();
+  }
+
+  // -------------------------------------------------------------- nutrition
+
+  /// Food logged between midnight and midnight of the day containing [day].
+  ///
+  /// The window is resolved once, when the stream is created - a stream left
+  /// open across midnight keeps reporting the day it was opened on. The
+  /// provider layer re-subscribes on a date change rather than making every
+  /// row re-evaluate a moving boundary.
+  Stream<List<FoodLog>> watchFoodLogsForDay(DateTime day) {
+    final DateTime start = DateTime(day.year, day.month, day.day);
+    final DateTime end = start.add(const Duration(days: 1));
+    return (select(foodLogs)
+          ..where((t) =>
+              t.loggedAt.isBiggerOrEqualValue(start) &
+              t.loggedAt.isSmallerThanValue(end))
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.loggedAt),
+            (t) => OrderingTerm.asc(t.id),
+          ]))
+        .watch();
+  }
+
+  Stream<List<FoodLog>> watchTodayFoodLogs() =>
+      watchFoodLogsForDay(DateTime.now());
+
+  /// Writes a whole reviewed meal in one transaction, so the home gauges move
+  /// exactly once instead of flickering upward item by item.
+  Future<void> insertFoodLogs(List<FoodLogsCompanion> entries) async {
+    if (entries.isEmpty) return;
+    await batch((Batch b) => b.insertAll(foodLogs, entries));
+  }
+
+  Future<void> deleteFoodLog(int id) async {
+    await (delete(foodLogs)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<void> clearFoodLogs() async {
+    await delete(foodLogs).go();
   }
 
   Future<void> clearHistory() async {

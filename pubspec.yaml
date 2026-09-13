@@ -30,6 +30,8 @@ dependencies:
   http: ^1.2.0
 
   intl: any
+  # Opens the Google AI Studio key page from Settings
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

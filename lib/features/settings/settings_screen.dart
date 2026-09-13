@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
@@ -10,6 +11,7 @@ import '../../core/widgets/fade_in.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/neon_button.dart';
 import '../../core/widgets/section_header.dart';
+import '../../data/services/gemini_food_service.dart' show kGeminiKeyUrl;
 import '../../domain/nutrition.dart';
 import '../../state/nutrition_providers.dart';
 import '../../state/providers.dart';
@@ -334,12 +336,10 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'FitPulse 1.0 - workouts, sets and food are stored in an '
-                    'SQLite database on this device, and there is no account. '
-                    'The only thing that ever leaves the phone is the meal '
-                    'text you type into the AI food logger, which is sent to '
-                    'the Google Gemini API - and only while your own API key '
-                    'is set.',
+                    'FitPulse 1.0 - workout logs remain 100% local on your '
+                    'phone. AI food parsing sends meal text directly to the '
+                    'Google Gemini API using your personal key, and only '
+                    'while a key is set.',
                     style: AppText.caption,
                   ),
                 ),
@@ -913,6 +913,7 @@ class _ApiKeySheetState extends State<_ApiKeySheet> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.initialKey);
   bool _obscured = true;
+  bool _launchFailed = false;
 
   @override
   void dispose() {
@@ -923,6 +924,23 @@ class _ApiKeySheetState extends State<_ApiKeySheet> {
   void _submit() => Navigator.of(context).pop(_controller.text);
 
   void _clear() => Navigator.of(context).pop('');
+
+  /// Opens Google AI Studio's key page. A failure is reported inside the
+  /// sheet rather than thrown: a device with no app that can handle https
+  /// should not take the settings screen down with it.
+  Future<void> _openKeyPage() async {
+    setState(() => _launchFailed = false);
+    bool opened = false;
+    try {
+      opened = await launchUrl(
+        Uri.parse(kGeminiKeyUrl),
+        mode: LaunchMode.externalApplication,
+      );
+    } on Exception {
+      opened = false;
+    }
+    if (!opened && mounted) setState(() => _launchFailed = true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -937,82 +955,155 @@ class _ApiKeySheetState extends State<_ApiKeySheet> {
         opaque: true,
         highlighted: true,
         padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text('AI food parsing', style: AppText.title),
-            const SizedBox(height: 6),
-            Text(
-              'Paste a Gemini API key from aistudio.google.com/apikey. It is '
-              'stored on this device only. With a key set, the meal text you '
-              'type in the food logger is sent to Google to be broken down '
-              'into items and macros - nothing else is ever uploaded.',
-              style: AppText.body,
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.only(left: 14, right: 4),
-              decoration: BoxDecoration(
-                color: AppColors.glassFill,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.glassBorder),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('AI food parsing', style: AppText.title),
+              const SizedBox(height: 6),
+              Text(
+                'The key is stored on this device only. With one set, the '
+                'meal text you type in the food logger is sent to Google to '
+                'be broken down into items and macros - nothing else is '
+                'uploaded.',
+                style: AppText.body,
               ),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      autofocus: widget.initialKey.isEmpty,
-                      obscureText: _obscured,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      textInputAction: TextInputAction.done,
-                      style: sora(14, 600),
-                      cursorColor: AppColors.neonCyan,
-                      decoration: InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 16),
-                        hintText: 'AIza...',
-                        hintStyle: sora(
-                          14,
-                          500,
-                          color: AppColors.textTertiary,
+              const SizedBox(height: 16),
+              NeonButton(
+                label: 'GET FREE GEMINI KEY',
+                height: 48,
+                icon: Icons.open_in_new_rounded,
+                onPressed: _openKeyPage,
+              ),
+              const SizedBox(height: 14),
+              const _KeyStep(
+                number: 1,
+                text: 'Tap "Get free Gemini key" and sign in with Google.',
+              ),
+              const _KeyStep(number: 2, text: 'Click "Create API key".'),
+              const _KeyStep(
+                number: 3,
+                text: 'Copy the key and paste it in the box below.',
+              ),
+              if (_launchFailed) ...<Widget>[
+                const SizedBox(height: 6),
+                Text(
+                  'Could not open a browser. Visit $kGeminiKeyUrl manually.',
+                  style: sora(11, 500, color: AppColors.warning),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.only(left: 14, right: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.glassFill,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.glassBorder),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        autofocus: widget.initialKey.isEmpty,
+                        obscureText: _obscured,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        textInputAction: TextInputAction.done,
+                        style: sora(14, 600),
+                        cursorColor: AppColors.neonCyan,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 16),
+                          hintText: 'AIza...',
+                          hintStyle: sora(
+                            14,
+                            500,
+                            color: AppColors.textTertiary,
+                          ),
                         ),
+                        onSubmitted: (_) => _submit(),
                       ),
-                      onSubmitted: (_) => _submit(),
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () => setState(() => _obscured = !_obscured),
-                    iconSize: 18,
-                    color: AppColors.textTertiary,
-                    tooltip: _obscured ? 'Show key' : 'Hide key',
-                    icon: Icon(
-                      _obscured
-                          ? Icons.visibility_rounded
-                          : Icons.visibility_off_rounded,
+                    IconButton(
+                      onPressed: () => setState(() => _obscured = !_obscured),
+                      iconSize: 18,
+                      color: AppColors.textTertiary,
+                      tooltip: _obscured ? 'Show key' : 'Hide key',
+                      icon: Icon(
+                        _obscured
+                            ? Icons.visibility_rounded
+                            : Icons.visibility_off_rounded,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 18),
-            NeonButton(label: 'SAVE KEY', height: 48, onPressed: _submit),
-            if (widget.initialKey.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 10),
-              Center(
-                child: GhostButton(
-                  label: 'Remove key',
-                  icon: Icons.link_off_rounded,
-                  color: AppColors.danger,
-                  onPressed: _clear,
+                  ],
                 ),
               ),
+              const SizedBox(height: 18),
+              NeonButton(label: 'SAVE KEY', height: 48, onPressed: _submit),
+              if (widget.initialKey.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 10),
+                Center(
+                  child: GhostButton(
+                    label: 'Remove key',
+                    icon: Icons.link_off_rounded,
+                    color: AppColors.danger,
+                    onPressed: _clear,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// One numbered line of the key micro-guide.
+class _KeyStep extends StatelessWidget {
+  const _KeyStep({required this.number, required this.text});
+
+  final int number;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 19,
+            height: 19,
+            margin: const EdgeInsets.only(top: 1),
+            decoration: BoxDecoration(
+              color: AppColors.neonCyan.withOpacity(0.12),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.neonCyan.withOpacity(0.28)),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '$number',
+              style: sora(10, 700, color: AppColors.neonCyan),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: sora(
+                12,
+                500,
+                color: AppColors.textSecondary,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

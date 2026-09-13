@@ -6,6 +6,9 @@ import 'package:http/http.dart' as http;
 
 import '../../domain/nutrition.dart';
 
+/// Where a user creates the key this service needs. Linked from Settings.
+const String kGeminiKeyUrl = 'https://aistudio.google.com/app/apikey';
+
 /// A failure the food logger can explain to the user in one line.
 ///
 /// Everything that can go wrong on the way to a parsed meal - no key, no

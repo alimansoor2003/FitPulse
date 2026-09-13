@@ -51,9 +51,16 @@ class NeonButton extends StatelessWidget {
           mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Text(
-              label,
-              style: sora(14, 700, color: Colors.white, letterSpacing: 0.8),
+            // Flexible so a long label ellipsises instead of overflowing the
+            // pill - a narrow phone or a large system text scale would
+            // otherwise push the trailing icon past the right edge.
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: sora(14, 700, color: Colors.white, letterSpacing: 0.8),
+              ),
             ),
             if (icon != null) ...<Widget>[
               const SizedBox(width: 12),
@@ -114,7 +121,17 @@ class GhostButton extends StatelessWidget {
               Icon(icon, size: 15, color: color),
               const SizedBox(width: 8),
             ],
-            Text(label, style: sora(13, 600, color: color)),
+            // Same reasoning as NeonButton: these pills are often laid out
+            // two to a row inside a sheet, so the label has to give way
+            // rather than overflow.
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: sora(13, 600, color: color),
+              ),
+            ),
           ],
         ),
       ),

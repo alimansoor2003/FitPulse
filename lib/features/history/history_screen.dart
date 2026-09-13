@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
@@ -7,10 +8,13 @@ import '../../core/theme/app_typography.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/fade_in.dart';
 import '../../core/widgets/glass_card.dart';
+import '../../core/widgets/neon_button.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/db/app_database.dart';
 import '../../data/db/seed_data.dart';
 import '../../domain/models.dart';
+import '../../domain/progress_layout.dart';
+import '../../state/progress_layout.dart';
 import '../../state/providers.dart';
 import '../nutrition/widgets/nutrition_trend_card.dart';
 import 'widgets/session_detail_sheet.dart';
@@ -25,11 +29,30 @@ class HistoryScreen extends ConsumerStatefulWidget {
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   int? _selectedExerciseId;
 
+  /// Whether the section list is in reorder mode.
+  bool _editing = false;
+
+  IconData _iconFor(ProgressSection section) {
+    switch (section) {
+      case ProgressSection.weeklyConsistency:
+        return Icons.calendar_month_rounded;
+      case ProgressSection.volumeTrend:
+        return Icons.bar_chart_rounded;
+      case ProgressSection.macroOverview:
+        return Icons.restaurant_rounded;
+      case ProgressSection.oneRmChart:
+        return Icons.trending_up_rounded;
+      case ProgressSection.exerciseHistory:
+        return Icons.history_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final List<SessionSummary> sessions = ref.watch(finishedSessionsProvider);
     final DashboardStats stats = ref.watch(dashboardStatsProvider);
     final List<WeeklyLoad> weeks = ref.watch(weeklyLoadProvider);
+    final List<ProgressSection> order = ref.watch(progressLayoutProvider);
     final AsyncValue<List<Exercise>> exercisesAsync =
         ref.watch(allExercisesProvider);
     final List<Exercise> exercises = exercisesAsync.maybeWhen(
@@ -40,85 +63,249 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final int? exerciseId = _selectedExerciseId ??
         (exercises.isEmpty ? null : exercises.first.id);
 
-    return ListView(
+    Widget bodyFor(ProgressSection section) {
+      switch (section) {
+        case ProgressSection.weeklyConsistency:
+          return _ConsistencyStrip(weeks: weeks, goal: stats.weeklyGoal);
+        case ProgressSection.volumeTrend:
+          return _VolumeChartCard(sessions: sessions);
+        case ProgressSection.macroOverview:
+          return const NutritionTrendCard();
+        case ProgressSection.oneRmChart:
+          return _ProgressionCard(
+            exercises: exercises,
+            selectedId: exerciseId,
+            onSelect: (int id) => setState(() => _selectedExerciseId = id),
+          );
+        case ProgressSection.exerciseHistory:
+          return _SessionList(
+            sessions: sessions,
+            onTap: (SessionSummary s) => showSessionDetailSheet(context, s),
+          );
+      }
+    }
+
+    // buildDefaultDragHandles is off, so outside edit mode this behaves like
+    // the plain list it replaced: no long-press drag competing with the
+    // charts, the exercise chip strip, or a tap on a session row.
+    return ReorderableListView(
+      buildDefaultDragHandles: false,
       padding: EdgeInsets.fromLTRB(
         20,
         MediaQuery.paddingOf(context).top + 18,
         20,
         120,
       ),
+      onReorder: (int oldIndex, int newIndex) {
+        HapticFeedback.selectionClick();
+        ref.read(progressLayoutProvider.notifier).reorder(oldIndex, newIndex);
+      },
+      header: _ProgressHeader(
+        stats: stats,
+        editing: _editing,
+        customised: ref.read(progressLayoutProvider.notifier).isCustomised,
+        onToggleEdit: () {
+          HapticFeedback.mediumImpact();
+          setState(() => _editing = !_editing);
+        },
+        onReset: () {
+          HapticFeedback.mediumImpact();
+          ref.read(progressLayoutProvider.notifier).resetToDefault();
+        },
+      ),
       children: <Widget>[
-        FadeIn(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('Progress', style: AppText.display),
-              const SizedBox(height: 4),
-              Text(
-                'Every session you have banked so far.',
-                style: AppText.body,
+        for (int i = 0; i < order.length; i++)
+          if (_editing)
+            _SectionEditRow(
+              key: ValueKey<String>(order[i].storageKey),
+              index: i,
+              section: order[i],
+              icon: _iconFor(order[i]),
+            )
+          else
+            Padding(
+              key: ValueKey<String>(order[i].storageKey),
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  SectionHeader(title: order[i].title),
+                  FadeIn(
+                    delay: Duration(milliseconds: 100 + i * 40),
+                    child: bodyFor(order[i]),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+      ],
+    );
+  }
+}
+
+/// Title, summary tiles and the Edit Layout control. Pinned above the
+/// reorderable sections rather than being one of them - it is the screen's
+/// identity, and there is nothing to compare it against.
+class _ProgressHeader extends StatelessWidget {
+  const _ProgressHeader({
+    required this.stats,
+    required this.editing,
+    required this.customised,
+    required this.onToggleEdit,
+    required this.onReset,
+  });
+
+  final DashboardStats stats;
+  final bool editing;
+  final bool customised;
+  final VoidCallback onToggleEdit;
+  final VoidCallback onReset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('Progress', style: AppText.display),
+                  const SizedBox(height: 4),
+                  Text(
+                    editing
+                        ? 'Drag the sections into the order you want.'
+                        : 'Every session you have banked so far.',
+                    style: AppText.body,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            GlassIconButton(
+              icon: editing ? Icons.check_rounded : Icons.swap_vert_rounded,
+              tooltip: editing ? 'Done' : 'Edit layout',
+              onTap: onToggleEdit,
+            ),
+          ],
         ),
+        if (editing && customised) ...<Widget>[
+          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: GhostButton(
+              label: 'Reset to default order',
+              icon: Icons.restart_alt_rounded,
+              onPressed: onReset,
+            ),
+          ),
+        ],
         const SizedBox(height: 22),
-
-        FadeIn(
-          delay: const Duration(milliseconds: 60),
-          child: _SummaryGrid(stats: stats),
-        ),
-        const SizedBox(height: 24),
-
-        const SectionHeader(title: 'Weekly Consistency'),
-        FadeIn(
-          delay: const Duration(milliseconds: 100),
-          child: _ConsistencyStrip(weeks: weeks, goal: stats.weeklyGoal),
-        ),
-        const SizedBox(height: 24),
-
-        const SectionHeader(title: 'Session Volume'),
-        FadeIn(
-          delay: const Duration(milliseconds: 140),
-          child: _VolumeChartCard(sessions: sessions),
-        ),
-        const SizedBox(height: 24),
-
-        const SectionHeader(title: 'Nutrition Trends'),
-        const FadeIn(
-          delay: Duration(milliseconds: 160),
-          child: NutritionTrendCard(),
-        ),
-        const SizedBox(height: 24),
-
-        const SectionHeader(title: 'Strength Progression'),
-        FadeIn(
-          delay: const Duration(milliseconds: 180),
-          child: _ProgressionCard(
-            exercises: exercises,
-            selectedId: exerciseId,
-            onSelect: (int id) => setState(() => _selectedExerciseId = id),
+        if (!editing) ...<Widget>[
+          FadeIn(
+            delay: const Duration(milliseconds: 60),
+            child: _SummaryGrid(stats: stats),
           ),
-        ),
-        const SizedBox(height: 24),
+          const SizedBox(height: 24),
+        ],
+      ],
+    );
+  }
+}
 
-        const SectionHeader(title: 'All Sessions'),
-        if (sessions.isEmpty)
-          GlassCard(
-            child: Text(
-              'Nothing logged yet. Finish a workout and it will show up here '
-              'with its volume, duration and set count.',
-              style: AppText.caption,
+/// A section collapsed to a single draggable row while editing.
+///
+/// The full cards are deliberately not rendered here. Dragging a live
+/// fl_chart means re-rasterising it into the drag proxy every frame, which is
+/// exactly the per-frame cost this app has been keeping out of scrolling
+/// content - and a 200px chart in flight is harder to aim than a compact row.
+class _SectionEditRow extends StatelessWidget {
+  const _SectionEditRow({
+    super.key,
+    required this.index,
+    required this.section,
+    required this.icon,
+  });
+
+  final int index;
+  final ProgressSection section;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.neonCyan.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.neonCyan.withOpacity(0.22),
+                ),
+              ),
+              child: Icon(icon, size: 18, color: AppColors.neonCyan),
             ),
-          )
-        else
-          ...sessions.map(
-            (SessionSummary s) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _HistoryRow(
-                summary: s,
-                onTap: () => showSessionDetailSheet(context, s),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Text(
+                section.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: sora(14, 600),
               ),
             ),
+            const SizedBox(width: 8),
+            ReorderableDragStartListener(
+              index: index,
+              child: const Padding(
+                // A little slop around the grip so it is comfortable to grab.
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                child: Icon(
+                  Icons.drag_indicator_rounded,
+                  size: 22,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The All Sessions list, extracted so it can be placed as one section.
+class _SessionList extends StatelessWidget {
+  const _SessionList({required this.sessions, required this.onTap});
+
+  final List<SessionSummary> sessions;
+  final ValueChanged<SessionSummary> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (sessions.isEmpty) {
+      return GlassCard(
+        child: Text(
+          'Nothing logged yet. Finish a workout and it will show up here '
+          'with its volume, duration and set count.',
+          style: AppText.caption,
+        ),
+      );
+    }
+    return Column(
+      children: <Widget>[
+        for (final SessionSummary s in sessions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _HistoryRow(summary: s, onTap: () => onTap(s)),
           ),
       ],
     );

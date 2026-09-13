@@ -10,6 +10,8 @@ import '../../core/widgets/fade_in.dart';
 import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/neon_button.dart';
 import '../../core/widgets/section_header.dart';
+import '../../domain/nutrition.dart';
+import '../../state/nutrition_providers.dart';
 import '../../state/providers.dart';
 import '../../state/settings_controller.dart';
 
@@ -31,6 +33,42 @@ class SettingsScreen extends ConsumerWidget {
 
     if (name != null) {
       await ref.read(settingsProvider.notifier).setName(name);
+    }
+  }
+
+  Future<void> _editTargets(
+    BuildContext context,
+    WidgetRef ref,
+    MacroTargets current,
+  ) async {
+    final MacroTargets? targets = await showModalBottomSheet<MacroTargets>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xCC050A14),
+      isScrollControlled: true,
+      builder: (BuildContext context) => _TargetsSheet(initial: current),
+    );
+
+    if (targets != null) {
+      await ref.read(settingsProvider.notifier).setMacroTargets(targets);
+    }
+  }
+
+  Future<void> _editApiKey(
+    BuildContext context,
+    WidgetRef ref,
+    String current,
+  ) async {
+    final String? key = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xCC050A14),
+      isScrollControlled: true,
+      builder: (BuildContext context) => _ApiKeySheet(initialKey: current),
+    );
+
+    if (key != null) {
+      await ref.read(settingsProvider.notifier).setGeminiApiKey(key);
     }
   }
 
@@ -155,6 +193,43 @@ class SettingsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
 
+        const SectionHeader(title: 'Nutrition'),
+        FadeIn(
+          delay: const Duration(milliseconds: 120),
+          child: GlassCard(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+            child: Column(
+              children: <Widget>[
+                _ActionRow(
+                  icon: Icons.local_fire_department_rounded,
+                  accent: AppColors.neonCyan,
+                  title: 'Daily targets',
+                  subtitle: '${settings.macroTargets.calories} kcal - '
+                      'P ${settings.macroTargets.proteinG.round()} / '
+                      'C ${settings.macroTargets.carbsG.round()} / '
+                      'F ${settings.macroTargets.fatG.round()} g',
+                  onTap: () =>
+                      _editTargets(context, ref, settings.macroTargets),
+                ),
+                const Divider(height: 18),
+                _ActionRow(
+                  icon: Icons.auto_awesome_rounded,
+                  accent: settings.aiFoodEnabled
+                      ? AppColors.neonGreen
+                      : AppColors.textTertiary,
+                  title: 'AI food parsing',
+                  subtitle: settings.aiFoodEnabled
+                      ? 'Connected - meal text is sent to Google Gemini'
+                      : 'Off - add a Gemini API key to turn it on',
+                  onTap: () =>
+                      _editApiKey(context, ref, settings.geminiApiKey),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
         const SectionHeader(title: 'Display'),
         FadeIn(
           delay: const Duration(milliseconds: 140),
@@ -199,6 +274,27 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const Divider(height: 18),
                 _ActionRow(
+                  icon: Icons.no_food_rounded,
+                  title: 'Clear food log',
+                  subtitle: 'Removes every meal you have logged',
+                  onTap: () async {
+                    final bool ok = await showConfirmSheet(
+                      context,
+                      title: 'Clear the food log?',
+                      message:
+                          'Every food item you have logged will be deleted. '
+                          'Your workouts and targets stay untouched.',
+                      confirmLabel: 'Clear',
+                      icon: Icons.no_food_rounded,
+                      destructive: true,
+                    );
+                    if (!ok) return;
+                    await ref.read(nutritionRepositoryProvider).clearFoodLogs();
+                    HapticFeedback.mediumImpact();
+                  },
+                ),
+                const Divider(height: 18),
+                _ActionRow(
                   icon: Icons.restart_alt_rounded,
                   title: 'Reset routine to default',
                   subtitle: 'Restores the original 3-day split and clears logs',
@@ -238,8 +334,12 @@ class SettingsScreen extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'FitPulse 1.0 - everything is stored locally in an SQLite '
-                    'database on this device. No account, no network.',
+                    'FitPulse 1.0 - workouts, sets and food are stored in an '
+                    'SQLite database on this device, and there is no account. '
+                    'The only thing that ever leaves the phone is the meal '
+                    'text you type into the AI food logger, which is sent to '
+                    'the Google Gemini API - and only while your own API key '
+                    'is set.',
                     style: AppText.caption,
                   ),
                 ),
@@ -490,12 +590,17 @@ class _ActionRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.accent = AppColors.danger,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+
+  /// Red by default - these rows started out as the destructive data
+  /// actions. The nutrition rows pass a neutral accent.
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
@@ -510,10 +615,10 @@ class _ActionRow extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: AppColors.danger.withOpacity(0.10),
+                color: accent.withOpacity(0.10),
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: Icon(icon, size: 17, color: AppColors.danger),
+              child: Icon(icon, size: 17, color: accent),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -608,6 +713,304 @@ class _NameSheetState extends State<_NameSheet> {
             ),
             const SizedBox(height: 18),
             NeonButton(label: 'SAVE', height: 48, onPressed: _submit),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Daily calorie and macro goals.
+///
+/// Owns its controllers for the same reason [_NameSheet] does: they must not
+/// be disposed while the sheet is still animating out.
+class _TargetsSheet extends StatefulWidget {
+  const _TargetsSheet({required this.initial});
+
+  final MacroTargets initial;
+
+  @override
+  State<_TargetsSheet> createState() => _TargetsSheetState();
+}
+
+class _TargetsSheetState extends State<_TargetsSheet> {
+  late final TextEditingController _calories =
+      TextEditingController(text: '${widget.initial.calories}');
+  late final TextEditingController _protein =
+      TextEditingController(text: _grams(widget.initial.proteinG));
+  late final TextEditingController _carbs =
+      TextEditingController(text: _grams(widget.initial.carbsG));
+  late final TextEditingController _fat =
+      TextEditingController(text: _grams(widget.initial.fatG));
+
+  static String _grams(double value) => value.round().toString();
+
+  @override
+  void dispose() {
+    _calories.dispose();
+    _protein.dispose();
+    _carbs.dispose();
+    _fat.dispose();
+    super.dispose();
+  }
+
+  double _read(TextEditingController controller, double fallback) {
+    final double? parsed =
+        double.tryParse(controller.text.trim().replaceAll(',', '.'));
+    return parsed == null || parsed.isNaN || parsed < 0 ? fallback : parsed;
+  }
+
+  void _submit() {
+    Navigator.of(context).pop(
+      MacroTargets(
+        calories: _read(_calories, widget.initial.calories.toDouble()).round(),
+        proteinG: _read(_protein, widget.initial.proteinG),
+        carbsG: _read(_carbs, widget.initial.carbsG),
+        fatG: _read(_fat, widget.initial.fatG),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+      ),
+      child: GlassCard(
+        radius: 28,
+        opaque: true,
+        highlighted: true,
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('Daily targets', style: AppText.title),
+            const SizedBox(height: 4),
+            Text(
+              'What the rings on the Today screen fill against.',
+              style: AppText.caption,
+            ),
+            const SizedBox(height: 16),
+            _TargetField(
+              controller: _calories,
+              label: 'Calories',
+              suffix: 'kcal',
+              autofocus: true,
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _TargetField(
+                    controller: _protein,
+                    label: 'Protein',
+                    suffix: 'g',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _TargetField(
+                    controller: _carbs,
+                    label: 'Carbs',
+                    suffix: 'g',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _TargetField(
+                    controller: _fat,
+                    label: 'Fat',
+                    suffix: 'g',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            NeonButton(label: 'SAVE', height: 48, onPressed: _submit),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TargetField extends StatelessWidget {
+  const _TargetField({
+    required this.controller,
+    required this.label,
+    required this.suffix,
+    this.autofocus = false,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String suffix;
+  final bool autofocus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.glassFill,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(label, style: AppText.caption),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  autofocus: autofocus,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: <TextInputFormatter>[
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  ],
+                  style: sora(16, 700),
+                  cursorColor: AppColors.neonCyan,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.only(top: 2),
+                  ),
+                ),
+              ),
+              Text(suffix, style: AppText.caption),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Gemini API key entry.
+///
+/// The key is stored in this device's SharedPreferences and sent only as a
+/// request header to Google's endpoint. Popping an empty string clears it,
+/// which turns AI parsing back off.
+class _ApiKeySheet extends StatefulWidget {
+  const _ApiKeySheet({required this.initialKey});
+
+  final String initialKey;
+
+  @override
+  State<_ApiKeySheet> createState() => _ApiKeySheetState();
+}
+
+class _ApiKeySheetState extends State<_ApiKeySheet> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialKey);
+  bool _obscured = true;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.of(context).pop(_controller.text);
+
+  void _clear() => Navigator.of(context).pop('');
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+      ),
+      child: GlassCard(
+        radius: 28,
+        opaque: true,
+        highlighted: true,
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('AI food parsing', style: AppText.title),
+            const SizedBox(height: 6),
+            Text(
+              'Paste a Gemini API key from aistudio.google.com/apikey. It is '
+              'stored on this device only. With a key set, the meal text you '
+              'type in the food logger is sent to Google to be broken down '
+              'into items and macros - nothing else is ever uploaded.',
+              style: AppText.body,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.only(left: 14, right: 4),
+              decoration: BoxDecoration(
+                color: AppColors.glassFill,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.glassBorder),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      autofocus: widget.initialKey.isEmpty,
+                      obscureText: _obscured,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      textInputAction: TextInputAction.done,
+                      style: sora(14, 600),
+                      cursorColor: AppColors.neonCyan,
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 16),
+                        hintText: 'AIza...',
+                        hintStyle: sora(
+                          14,
+                          500,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      onSubmitted: (_) => _submit(),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => setState(() => _obscured = !_obscured),
+                    iconSize: 18,
+                    color: AppColors.textTertiary,
+                    tooltip: _obscured ? 'Show key' : 'Hide key',
+                    icon: Icon(
+                      _obscured
+                          ? Icons.visibility_rounded
+                          : Icons.visibility_off_rounded,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            NeonButton(label: 'SAVE KEY', height: 48, onPressed: _submit),
+            if (widget.initialKey.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 10),
+              Center(
+                child: GhostButton(
+                  label: 'Remove key',
+                  icon: Icons.link_off_rounded,
+                  color: AppColors.danger,
+                  onPressed: _clear,
+                ),
+              ),
+            ],
           ],
         ),
       ),

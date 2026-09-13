@@ -18,6 +18,11 @@ Paying a recurring fee just to store my own workout history felt unnecessary. I 
 As an AI Engineer, I realized the solution was simple: Stop paying for what I can build.
 So, I built my own personal workout tracker.
 
+# 🍽️ AI Food & Macro Logging (optional)
+Type what you ate in plain English - *"3 eggs, 2 slices of sourdough toast, black coffee"* - and it comes back split into items with calories and macros. You review and edit every row before anything is saved.
+
+This is the one part of the app that talks to the internet, and it stays **off until you turn it on**: paste your own Gemini API key under **Settings → Nutrition → AI food parsing** and it is stored on your device only. Without a key the app makes no network calls at all, and meals can still be logged by hand. Workouts, sets and food all live in the same local SQLite database either way.
+
 # 🚀 Current State & Future Roadmap
 **Status:** Currently in Active Personal Development.
 

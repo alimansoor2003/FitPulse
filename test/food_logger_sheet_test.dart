@@ -212,9 +212,11 @@ void main() {
     );
 
     expect(find.text('PARSE WITH AI'), findsNothing);
-    expect(find.text('LOG MANUALLY'), findsOneWidget);
+    // The prompt has to be actionable, not just informative.
+    expect(find.text('ADD API KEY IN SETTINGS'), findsOneWidget);
+    expect(find.text('Log manually'), findsOneWidget);
 
-    await tester.tap(find.text('LOG MANUALLY'));
+    await tester.tap(find.text('Log manually'));
     await tester.pumpAndSettle();
 
     expect(find.text('Review'), findsOneWidget);

@@ -9,6 +9,7 @@ import '../../core/widgets/neon_button.dart';
 import '../../data/services/gemini_food_service.dart';
 import '../../domain/nutrition.dart';
 import '../../state/nutrition_providers.dart';
+import '../../state/providers.dart';
 import '../../state/settings_controller.dart';
 
 /// Opens the food logger. Returns the number of items written, or null if the
@@ -84,6 +85,14 @@ class _FoodLoggerSheetState extends ConsumerState<FoodLoggerSheet> {
         fatG: 0,
       );
 
+  /// Closes the sheet and lands the user on the Settings tab, where the key
+  /// is entered. The tab is switched first: after the pop this State is on its
+  /// way out, and reading a provider from it is no longer safe.
+  void _openSettings() {
+    ref.read(shellTabProvider.notifier).state = 2;
+    Navigator.of(context).pop();
+  }
+
   Future<void> _confirm(List<ParsedFood> items) async {
     await ref.read(foodLogControllerProvider.notifier).submit(items);
     if (!mounted) return;
@@ -123,6 +132,7 @@ class _FoodLoggerSheetState extends ConsumerState<FoodLoggerSheet> {
           onMealChanged: (MealType meal) => setState(() => _meal = meal),
           onParse: _parse,
           onManual: _logManually,
+          onOpenSettings: _openSettings,
         ),
     };
 
@@ -208,6 +218,7 @@ class _InputView extends StatelessWidget {
     required this.onMealChanged,
     required this.onParse,
     required this.onManual,
+    required this.onOpenSettings,
   });
 
   final TextEditingController controller;
@@ -216,6 +227,7 @@ class _InputView extends StatelessWidget {
   final ValueChanged<MealType> onMealChanged;
   final VoidCallback onParse;
   final VoidCallback onManual;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -270,21 +282,22 @@ class _InputView extends StatelessWidget {
           )
         else
           NeonButton(
-            label: 'LOG MANUALLY',
+            label: 'ADD API KEY IN SETTINGS',
             height: 52,
-            icon: Icons.edit_rounded,
-            onPressed: onManual,
+            icon: Icons.key_rounded,
+            onPressed: onOpenSettings,
           ),
         const SizedBox(height: 10),
-        if (aiEnabled)
-          Center(
-            child: GhostButton(
-              label: 'Log manually instead',
-              icon: Icons.edit_rounded,
-              onPressed: onManual,
-            ),
-          )
-        else
+        Center(
+          child: GhostButton(
+            label: aiEnabled ? 'Log manually instead' : 'Log manually',
+            icon: Icons.edit_rounded,
+            color: aiEnabled ? AppColors.textSecondary : AppColors.neonCyan,
+            onPressed: onManual,
+          ),
+        ),
+        if (!aiEnabled) ...<Widget>[
+          const SizedBox(height: 12),
           Row(
             children: <Widget>[
               const Icon(
@@ -301,6 +314,7 @@ class _InputView extends StatelessWidget {
               ),
             ],
           ),
+        ],
       ],
     );
   }

@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only used by the optional AI food parser, which posts the meal
+         text you type to the Google Gemini API. Workout data never
+         leaves the device. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="FitPulse"
         android:name="${applicationName}"

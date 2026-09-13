@@ -25,6 +25,10 @@ dependencies:
   # Lightweight key/value settings
   shared_preferences: ^2.2.0
 
+  # Gemini REST calls for the AI food parser (no SDK - see
+  # lib/data/services/gemini_food_service.dart)
+  http: ^1.2.0
+
   intl: any
 
 dev_dependencies:

@@ -141,6 +141,102 @@ void main() {
     });
   });
 
+  group('model deprecation', () {
+    test('follows the successor a 404 names, then succeeds', () async {
+      final List<String> pathsTried = <String>[];
+      final GeminiFoodService service = GeminiFoodService(
+        client: MockClient((http.Request request) async {
+          pathsTried.add(request.url.path);
+          if (pathsTried.length == 1) {
+            return http.Response(
+              jsonEncode(<String, Object?>{
+                'error': <String, Object?>{
+                  'code': 404,
+                  'message': 'This model models/gemini-2.5-flash is no longer '
+                      'available to new users. Please update your code to use '
+                      'models/gemini-9.9-flash for the latest features.',
+                },
+              }),
+              404,
+            );
+          }
+          return http.Response(
+            geminiEnvelope(<Object>[
+              <String, Object?>{
+                'name': 'Rice',
+                'mealType': 'Dinner',
+                'calories': 200,
+                'proteinG': 4,
+                'carbsG': 44,
+                'fatG': 0,
+              },
+            ]),
+            200,
+          );
+        }),
+      );
+      addTearDown(service.dispose);
+
+      final List<ParsedFood> items = await service.parseMeal(
+        'rice',
+        apiKey: key,
+        defaultMeal: MealType.dinner,
+      );
+
+      expect(items.single.name, 'Rice');
+      expect(pathsTried, hasLength(2));
+      expect(pathsTried.first, contains(GeminiFoodService.model));
+      expect(pathsTried.last, contains('gemini-9.9-flash'));
+      expect(service.activeModel, 'gemini-9.9-flash');
+    });
+
+    test('retries the successor once, never in a loop', () async {
+      int calls = 0;
+      final GeminiFoodService service = GeminiFoodService(
+        client: MockClient((http.Request request) async {
+          calls++;
+          return http.Response(
+            jsonEncode(<String, Object?>{
+              'error': <String, Object?>{
+                'message': 'Please update your code to use '
+                    'models/gemini-9.9-flash.',
+              },
+            }),
+            404,
+          );
+        }),
+      );
+      addTearDown(service.dispose);
+
+      await expectLater(
+        service.parseMeal('rice', apiKey: key, defaultMeal: MealType.dinner),
+        throwsA(isA<FoodParseException>()),
+      );
+      expect(calls, 2, reason: 'one attempt, one follow-up, then give up');
+    });
+
+    test('a 404 that names no successor is reported as-is', () async {
+      final GeminiFoodService service = serviceReturning(
+        jsonEncode(<String, Object?>{
+          'error': <String, Object?>{'message': 'Not found'},
+        }),
+        status: 404,
+      );
+      addTearDown(service.dispose);
+
+      await expectLater(
+        service.parseMeal('rice', apiKey: key, defaultMeal: MealType.dinner),
+        throwsA(
+          isA<FoodParseException>().having(
+            (FoodParseException e) => e.message,
+            'message',
+            contains('404'),
+          ),
+        ),
+      );
+    });
+  });
+
   group('failures', () {
     test('never touches the network without an API key', () async {
       bool called = false;

@@ -45,9 +45,21 @@ class GeminiFoodService {
   final http.Client _client;
   final Duration timeout;
 
-  static const String model = 'gemini-2.5-flash';
+  /// The model this ships pointing at.
+  ///
+  /// Google retires these faster than the app ships: gemini-1.5-flash was
+  /// gone before the first build, and gemini-2.5-flash started 404ing for new
+  /// keys shortly after. See [_replacementModelFrom] - a 404 that names its
+  /// own successor is followed automatically rather than dead-ending on the
+  /// user.
+  static const String model = 'gemini-3.6-flash';
   static const String _host = 'generativelanguage.googleapis.com';
-  static const String _path = '/v1beta/models/$model:generateContent';
+
+  /// The model actually in use. Starts at [model] and moves if Google tells
+  /// us to, for the life of this service instance.
+  String _activeModel = model;
+
+  String get activeModel => _activeModel;
 
   bool _closed = false;
 
@@ -139,9 +151,28 @@ class GeminiFoodService {
       );
     }
 
+    return _send(
+      text,
+      apiKey: apiKey.trim(),
+      defaultMeal: defaultMeal,
+      followModelChange: true,
+    );
+  }
+
+  /// One request/response cycle against [_activeModel].
+  ///
+  /// [followModelChange] is true only for the first attempt, so a deprecation
+  /// 404 costs at most one extra round trip and can never loop.
+  Future<List<ParsedFood>> _send(
+    String text, {
+    required String apiKey,
+    required MealType defaultMeal,
+    required bool followModelChange,
+  }) async {
     // The key travels as a header, not a query parameter, so it cannot be
     // captured by anything that logs request URLs.
-    final Uri uri = Uri.https(_host, _path);
+    final Uri uri =
+        Uri.https(_host, '/v1beta/models/$_activeModel:generateContent');
     final String body = jsonEncode(<String, Object?>{
       'systemInstruction': <String, Object?>{
         'parts': <Object>[
@@ -173,7 +204,7 @@ class GeminiFoodService {
             uri,
             headers: <String, String>{
               'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey.trim(),
+              'x-goog-api-key': apiKey,
             },
             body: body,
           )
@@ -191,10 +222,39 @@ class GeminiFoodService {
     }
 
     if (response.statusCode != 200) {
+      final String? replacement =
+          followModelChange ? _replacementModelFrom(response) : null;
+      if (replacement != null) {
+        _activeModel = replacement;
+        return _send(
+          text,
+          apiKey: apiKey,
+          defaultMeal: defaultMeal,
+          followModelChange: false,
+        );
+      }
       throw _httpFailure(response);
     }
 
     return _itemsFrom(response.body, defaultMeal: defaultMeal);
+  }
+
+  /// The successor model named in a deprecation 404, if there is one.
+  ///
+  /// Google's own message spells it out - "This model models/gemini-2.5-flash
+  /// is no longer available to new users. Please update your code to use
+  /// models/gemini-3.6-flash" - so the retirement carries its own fix. Taking
+  /// it means the app keeps working the day a model is pulled instead of
+  /// showing the user a 404 they cannot act on.
+  String? _replacementModelFrom(http.Response response) {
+    if (response.statusCode != 404) return null;
+    final Iterable<RegExpMatch> matches =
+        RegExp(r'models/([A-Za-z0-9._-]+)').allMatches(response.body);
+    for (final RegExpMatch match in matches.toList().reversed) {
+      final String name = match.group(1)!;
+      if (name != _activeModel) return name;
+    }
+    return null;
   }
 
   FoodParseException _httpFailure(http.Response response) {

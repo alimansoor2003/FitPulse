@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../domain/nutrition.dart';
+
 /// Injected in `main()` once SharedPreferences has loaded.
 final Provider<SharedPreferences> sharedPreferencesProvider =
     Provider<SharedPreferences>(
@@ -16,6 +18,8 @@ class AppSettings {
     required this.showArabicNames,
     required this.weightStep,
     required this.weeklyGoal,
+    required this.geminiApiKey,
+    required this.macroTargets,
   });
 
   final String userName;
@@ -26,6 +30,25 @@ class AppSettings {
   final double weightStep;
   final int weeklyGoal;
 
+  /// Pasted by the user in Settings. Empty until they opt in to AI parsing.
+  final String geminiApiKey;
+  final MacroTargets macroTargets;
+
+  /// Compiled in for developer builds with
+  /// `flutter run --dart-define=GEMINI_API_KEY=...`. Never committed, and the
+  /// pasted key always wins so a shipped build can be re-pointed without a
+  /// rebuild.
+  static const String buildTimeGeminiKey =
+      String.fromEnvironment('GEMINI_API_KEY');
+
+  /// The key actually used for a request, or empty when the feature is off.
+  String get effectiveGeminiKey =>
+      geminiApiKey.trim().isNotEmpty ? geminiApiKey.trim() : buildTimeGeminiKey;
+
+  /// AI food parsing is opt-in: having a key *is* the opt-in. Without one the
+  /// app never touches the network and the logger offers manual entry only.
+  bool get aiFoodEnabled => effectiveGeminiKey.isNotEmpty;
+
   static const AppSettings fallback = AppSettings(
     userName: 'Athlete',
     onboarded: false,
@@ -34,6 +57,8 @@ class AppSettings {
     showArabicNames: true,
     weightStep: 2.5,
     weeklyGoal: 3,
+    geminiApiKey: '',
+    macroTargets: MacroTargets.fallback,
   );
 
   AppSettings copyWith({
@@ -44,6 +69,8 @@ class AppSettings {
     bool? showArabicNames,
     double? weightStep,
     int? weeklyGoal,
+    String? geminiApiKey,
+    MacroTargets? macroTargets,
   }) {
     return AppSettings(
       userName: userName ?? this.userName,
@@ -53,6 +80,8 @@ class AppSettings {
       showArabicNames: showArabicNames ?? this.showArabicNames,
       weightStep: weightStep ?? this.weightStep,
       weeklyGoal: weeklyGoal ?? this.weeklyGoal,
+      geminiApiKey: geminiApiKey ?? this.geminiApiKey,
+      macroTargets: macroTargets ?? this.macroTargets,
     );
   }
 }
@@ -65,6 +94,11 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _kArabic = 'show_arabic_names';
   static const String _kStep = 'weight_step';
   static const String _kGoal = 'weekly_goal';
+  static const String _kGeminiKey = 'gemini_api_key';
+  static const String _kCalories = 'target_calories';
+  static const String _kProtein = 'target_protein_g';
+  static const String _kCarbs = 'target_carbs_g';
+  static const String _kFat = 'target_fat_g';
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
@@ -79,6 +113,13 @@ class SettingsController extends Notifier<AppSettings> {
       showArabicNames: prefs.getBool(_kArabic) ?? true,
       weightStep: prefs.getDouble(_kStep) ?? 2.5,
       weeklyGoal: prefs.getInt(_kGoal) ?? 3,
+      geminiApiKey: prefs.getString(_kGeminiKey) ?? '',
+      macroTargets: MacroTargets(
+        calories: prefs.getInt(_kCalories) ?? MacroTargets.fallback.calories,
+        proteinG: prefs.getDouble(_kProtein) ?? MacroTargets.fallback.proteinG,
+        carbsG: prefs.getDouble(_kCarbs) ?? MacroTargets.fallback.carbsG,
+        fatG: prefs.getDouble(_kFat) ?? MacroTargets.fallback.fatG,
+      ),
     );
   }
 
@@ -120,6 +161,32 @@ class SettingsController extends Notifier<AppSettings> {
     final int clamped = value.clamp(1, 7).toInt();
     await _prefs.setInt(_kGoal, clamped);
     state = state.copyWith(weeklyGoal: clamped);
+  }
+
+  /// Stores the Gemini key. Passing an empty string opts back out of AI
+  /// parsing and clears the stored value entirely.
+  Future<void> setGeminiApiKey(String key) async {
+    final String clean = key.trim();
+    if (clean.isEmpty) {
+      await _prefs.remove(_kGeminiKey);
+    } else {
+      await _prefs.setString(_kGeminiKey, clean);
+    }
+    state = state.copyWith(geminiApiKey: clean);
+  }
+
+  Future<void> setMacroTargets(MacroTargets targets) async {
+    final MacroTargets clamped = MacroTargets(
+      calories: targets.calories.clamp(500, 8000),
+      proteinG: targets.proteinG.clamp(0.0, 500.0),
+      carbsG: targets.carbsG.clamp(0.0, 1000.0),
+      fatG: targets.fatG.clamp(0.0, 400.0),
+    );
+    await _prefs.setInt(_kCalories, clamped.calories);
+    await _prefs.setDouble(_kProtein, clamped.proteinG);
+    await _prefs.setDouble(_kCarbs, clamped.carbsG);
+    await _prefs.setDouble(_kFat, clamped.fatG);
+    state = state.copyWith(macroTargets: clamped);
   }
 }
 

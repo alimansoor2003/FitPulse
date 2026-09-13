@@ -536,42 +536,42 @@ class _ChoiceRow extends StatelessWidget {
           const SizedBox(height: 2),
           Text(subtitle, style: AppText.caption),
           const SizedBox(height: 12),
-          Row(
+          // Wrap, not Row: three fixed-width chips in a Row overflow on a
+          // narrow screen or at a large system text scale. Wrapping lets them
+          // fall to a second line instead of being clipped.
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: options.map((double option) {
               final bool isSelected = (option - selected).abs() < 0.01;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    onSelect(option);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 9,
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onSelect(option);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: isSelected ? AppColors.accentGradient : null,
+                    color: isSelected ? null : Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected
+                          ? Colors.transparent
+                          : AppColors.glassBorder,
                     ),
-                    decoration: BoxDecoration(
-                      gradient: isSelected ? AppColors.accentGradient : null,
+                  ),
+                  child: Text(
+                    '+${formatWeight(option)} kg',
+                    style: sora(
+                      12,
+                      600,
                       color:
-                          isSelected ? null : Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? Colors.transparent
-                            : AppColors.glassBorder,
-                      ),
-                    ),
-                    child: Text(
-                      '+${formatWeight(option)} kg',
-                      style: sora(
-                        12,
-                        600,
-                        color: isSelected
-                            ? Colors.white
-                            : AppColors.textSecondary,
-                      ),
+                          isSelected ? Colors.white : AppColors.textSecondary,
                     ),
                   ),
                 ),

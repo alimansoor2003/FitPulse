@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:fitpulse/data/db/app_database.dart';
 import 'package:fitpulse/data/repositories/hydration_repository.dart';
+import 'package:fitpulse/domain/hydration.dart';
 import 'package:fitpulse/features/hydration/custom_water_sheet.dart';
 import 'package:fitpulse/features/hydration/widgets/hydration_card.dart';
 import 'package:fitpulse/state/hydration_providers.dart';
@@ -71,6 +72,7 @@ void main() {
     List<int> seed = const <int>[],
     int goalMl = 2500,
     double textScale = 1.0,
+    List<String>? presets,
   }) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 2.625;
@@ -80,6 +82,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{
       'onboarded': true,
       'target_water_ml': goalMl,
+      if (presets != null) 'water_presets_ml': presets,
     });
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
@@ -121,7 +124,11 @@ void main() {
     expect(find.text('0 ml'), findsOneWidget);
     expect(find.text('of 2.5 L daily goal'), findsOneWidget);
     expect(find.text('2.5 L to go'), findsOneWidget);
-    expect(find.text('Nothing logged yet today'), findsOneWidget);
+    // With nothing logged the footer teaches the hold gesture instead.
+    expect(
+      find.text('Hold Glass or Bottle to change its amount'),
+      findsOneWidget,
+    );
     expect(find.byIcon(Icons.undo_rounded), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -218,4 +225,117 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: Scaffold()));
     expect(tester.takeException(), isNull);
   });
+
+  // ------------------------------------------------------ pinned presets
+
+  /// Presses a preset and keeps the finger down for [hold].
+  ///
+  /// The extra 16ms pump starts the hold animation's ticker before the long
+  /// pump: a ticker's first frame only records its start time, so without it
+  /// the whole hold would measure as zero.
+  Future<void> press(
+    WidgetTester tester,
+    String label,
+    Duration hold,
+  ) async {
+    final TestGesture gesture =
+        await tester.startGesture(tester.getCenter(find.text(label)));
+    await tester.pump(const Duration(milliseconds: 150));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump(hold);
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('saved preset amounts are what the tiles show and log', (
+    WidgetTester tester,
+  ) async {
+    final _FakeHydrationRepository repo =
+        await pumpCard(tester, presets: <String>['300', '750']);
+
+    expect(find.text('+300 ml'), findsOneWidget);
+    expect(find.text('+750 ml'), findsOneWidget);
+
+    await tester.tap(find.text('+750 ml'));
+    await tester.pumpAndSettle();
+    expect(repo.rows.map((WaterLog r) => r.amountMl), <int>[750]);
+  });
+
+  testWidgets('holding a preset for 2.5 s opens it for editing', (
+    WidgetTester tester,
+  ) async {
+    final _FakeHydrationRepository repo = await pumpCard(tester);
+
+    await press(tester, '+250 ml', kPresetHoldDuration);
+
+    expect(find.text('Edit Glass'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '250',
+      reason: 'the editor starts from the current amount',
+    );
+    expect(repo.rows, isEmpty, reason: 'a completed hold never logs a drink');
+  });
+
+  testWidgets('saving pins the new amount, persists it, and logs nothing', (
+    WidgetTester tester,
+  ) async {
+    final _FakeHydrationRepository repo = await pumpCard(tester);
+
+    await press(tester, '+250 ml', kPresetHoldDuration);
+    await tester.enterText(find.byType(TextField), '400');
+    await tester.pump();
+    await tester.tap(find.text('SAVE 400 ml'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit Glass'), findsNothing);
+    expect(find.text('+400 ml'), findsOneWidget);
+    expect(find.text('+250 ml'), findsNothing);
+    expect(repo.rows, isEmpty);
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.getStringList('water_presets_ml'),
+      <String>['400', '500'],
+      reason: 'only the edited slot changes, and it survives a restart',
+    );
+
+    // And the pinned amount is what a tap now logs.
+    await tester.tap(find.text('+400 ml'));
+    await tester.pumpAndSettle();
+    expect(repo.rows.map((WaterLog r) => r.amountMl), <int>[400]);
+  });
+
+  testWidgets('letting go part-way through a hold logs and edits nothing', (
+    WidgetTester tester,
+  ) async {
+    final _FakeHydrationRepository repo = await pumpCard(tester);
+
+    await press(tester, '+500 ml', const Duration(milliseconds: 1200));
+
+    expect(find.text('Edit Bottle'), findsNothing);
+    expect(repo.rows, isEmpty,
+        reason: 'a hold abandoned half-way is not a tap');
+  });
+
+  testWidgets('dismissing the editor keeps the old amount', (
+    WidgetTester tester,
+  ) async {
+    await pumpCard(tester);
+
+    await press(tester, '+500 ml', kPresetHoldDuration);
+    expect(find.text('Edit Bottle'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '900');
+    await tester.pump();
+    // Close without saving: tap the barrier above the sheet.
+    await tester.tapAt(const Offset(200, 40));
+    await tester.pumpAndSettle();
+
+    expect(find.text('+500 ml'), findsOneWidget);
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    expect(prefs.getStringList('water_presets_ml'), isNull);
+  });
 }
+

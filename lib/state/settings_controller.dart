@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../domain/hydration.dart';
 import '../domain/nutrition.dart';
 
 /// Injected in `main()` once SharedPreferences has loaded.
@@ -21,6 +22,7 @@ class AppSettings {
     required this.geminiApiKey,
     required this.macroTargets,
     required this.waterGoalMl,
+    required this.waterPresetsMl,
   });
 
   final String userName;
@@ -42,6 +44,9 @@ class AppSettings {
   static const int minWaterGoalMl = 500;
   static const int maxWaterGoalMl = 6000;
   static const int waterGoalStepMl = 250;
+
+  /// What each pinned quick-add slot logs, in [kWaterPresetLabels] order.
+  final List<int> waterPresetsMl;
 
   /// Compiled in for developer builds with
   /// `flutter run --dart-define=GEMINI_API_KEY=...`. Never committed, and the
@@ -69,6 +74,7 @@ class AppSettings {
     geminiApiKey: '',
     macroTargets: MacroTargets.fallback,
     waterGoalMl: defaultWaterGoalMl,
+    waterPresetsMl: kDefaultWaterPresetsMl,
   );
 
   AppSettings copyWith({
@@ -82,6 +88,7 @@ class AppSettings {
     String? geminiApiKey,
     MacroTargets? macroTargets,
     int? waterGoalMl,
+    List<int>? waterPresetsMl,
   }) {
     return AppSettings(
       userName: userName ?? this.userName,
@@ -94,6 +101,7 @@ class AppSettings {
       geminiApiKey: geminiApiKey ?? this.geminiApiKey,
       macroTargets: macroTargets ?? this.macroTargets,
       waterGoalMl: waterGoalMl ?? this.waterGoalMl,
+      waterPresetsMl: waterPresetsMl ?? this.waterPresetsMl,
     );
   }
 }
@@ -112,6 +120,7 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _kCarbs = 'target_carbs_g';
   static const String _kFat = 'target_fat_g';
   static const String _kWater = 'target_water_ml';
+  static const String _kWaterPresets = 'water_presets_ml';
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
@@ -135,6 +144,7 @@ class SettingsController extends Notifier<AppSettings> {
       ),
       waterGoalMl:
           prefs.getInt(_kWater) ?? AppSettings.defaultWaterGoalMl,
+      waterPresetsMl: waterPresetsFrom(prefs.getStringList(_kWaterPresets)),
     );
   }
 
@@ -200,6 +210,19 @@ class SettingsController extends Notifier<AppSettings> {
         .toInt();
     await _prefs.setInt(_kWater, clamped);
     state = state.copyWith(waterGoalMl: clamped);
+  }
+
+  /// Re-pins the quick-add slot at [index] to [ml], clamped to what a single
+  /// drink can be.
+  Future<void> setWaterPreset(int index, int ml) async {
+    if (index < 0 || index >= state.waterPresetsMl.length) return;
+    final List<int> next = List<int>.of(state.waterPresetsMl);
+    next[index] = ml.clamp(kMinDrinkMl, kMaxDrinkMl).toInt();
+    await _prefs.setStringList(
+      _kWaterPresets,
+      <String>[for (final int value in next) '$value'],
+    );
+    state = state.copyWith(waterPresetsMl: next);
   }
 
   Future<void> setMacroTargets(MacroTargets targets) async {

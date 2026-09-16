@@ -39,6 +39,23 @@ void main() {
     });
   });
 
+  group('waterPresetsFrom', () {
+    test('defaults when nothing has been saved', () {
+      expect(waterPresetsFrom(null), kDefaultWaterPresetsMl);
+    });
+
+    test('restores saved amounts', () {
+      expect(waterPresetsFrom(<String>['330', '1000']), <int>[330, 1000]);
+    });
+
+    test('falls back per slot, keeping the good one', () {
+      expect(waterPresetsFrom(<String>['abc', '750']), <int>[250, 750]);
+      expect(waterPresetsFrom(<String>['9000', '750']), <int>[250, 750]);
+      expect(waterPresetsFrom(<String>['5', '750']), <int>[250, 750]);
+      expect(waterPresetsFrom(<String>['330']), <int>[330, 500]);
+    });
+  });
+
   group('todayFrom', () {
     test('an empty day has nothing to undo', () {
       final HydrationToday today = repo.todayFrom(<WaterLog>[]);
@@ -171,6 +188,25 @@ void main() {
 
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt('target_water_ml'), 6000);
+    });
+
+    test('re-pinning a preset clamps and persists only that slot',
+        () async {
+      final ProviderContainer c = await container(<String, Object>{});
+      final SettingsController controller = c.read(settingsProvider.notifier);
+
+      await controller.setWaterPreset(1, 750);
+      expect(c.read(settingsProvider).waterPresetsMl, <int>[250, 750]);
+
+      await controller.setWaterPreset(0, 99999);
+      expect(c.read(settingsProvider).waterPresetsMl, <int>[3000, 750]);
+
+      await controller.setWaterPreset(7, 400);
+      expect(c.read(settingsProvider).waterPresetsMl, <int>[3000, 750],
+          reason: 'an index with no slot is ignored');
+
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('water_presets_ml'), <String>['3000', '750']);
     });
 
     test('a saved goal is read back on launch', () async {

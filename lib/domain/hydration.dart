@@ -1,21 +1,37 @@
-/// A one-tap amount on the hydration card.
-class WaterPreset {
-  const WaterPreset({required this.amountMl, required this.label});
+/// The pinned quick-add slots on the hydration card, in order.
+///
+/// The labels are fixed; the amounts are the user's. Holding a slot for
+/// [kPresetHoldDuration] lets them change what it logs.
+const List<String> kWaterPresetLabels = <String>['Glass', 'Bottle'];
+const List<int> kDefaultWaterPresetsMl = <int>[250, 500];
 
-  final int amountMl;
-  final String label;
-}
-
-/// The quick-add buttons, smallest first.
-const List<WaterPreset> kWaterPresets = <WaterPreset>[
-  WaterPreset(amountMl: 250, label: 'Glass'),
-  WaterPreset(amountMl: 500, label: 'Bottle'),
-];
+/// How long a preset has to be held before it opens for editing.
+const Duration kPresetHoldDuration = Duration(milliseconds: 2500);
 
 /// Bounds for a single custom drink. The upper bound catches a slipped extra
 /// zero ("5000") rather than limiting a genuinely large bottle.
 const int kMinDrinkMl = 10;
 const int kMaxDrinkMl = 3000;
+
+/// Rebuilds the pinned preset amounts from what SharedPreferences holds.
+///
+/// Anything unusable falls back slot by slot rather than wholesale: a missing
+/// list, a list of the wrong length, a value that is not a number, or one
+/// outside what a single drink can be. One bad slot should not reset the
+/// other one the user deliberately set.
+List<int> waterPresetsFrom(List<String>? saved) {
+  return <int>[
+    for (int i = 0; i < kDefaultWaterPresetsMl.length; i++)
+      _presetAt(saved, i) ?? kDefaultWaterPresetsMl[i],
+  ];
+}
+
+int? _presetAt(List<String>? saved, int index) {
+  if (saved == null || index >= saved.length) return null;
+  final int? ml = int.tryParse(saved[index].trim());
+  if (ml == null || ml < kMinDrinkMl || ml > kMaxDrinkMl) return null;
+  return ml;
+}
 
 /// Formats a volume for display: "750 ml" below a litre, "1.25 L" above.
 String formatWaterMl(int ml) {

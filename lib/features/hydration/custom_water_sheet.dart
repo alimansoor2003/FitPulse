@@ -7,15 +7,30 @@ import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/neon_button.dart';
 import '../../domain/hydration.dart';
 
-/// Asks for a custom drink size. Returns the amount in millilitres, or null
-/// if dismissed.
-Future<int?> showCustomWaterSheet(BuildContext context) {
+/// Asks for a drink size. Returns the amount in millilitres, or null if
+/// dismissed.
+///
+/// Serves two jobs: logging a one-off custom drink (the defaults), and
+/// re-pinning a quick-add preset, where the caller passes the preset's
+/// current amount and a "SAVE" verb.
+Future<int?> showCustomWaterSheet(
+  BuildContext context, {
+  String title = 'Log water',
+  String subtitle = 'Pick a common size or enter your own.',
+  String confirmVerb = 'ADD',
+  int? initialMl,
+}) {
   return showModalBottomSheet<int>(
     context: context,
     backgroundColor: Colors.transparent,
     barrierColor: const Color(0xCC050A14),
     isScrollControlled: true,
-    builder: (BuildContext context) => const CustomWaterSheet(),
+    builder: (BuildContext context) => CustomWaterSheet(
+      title: title,
+      subtitle: subtitle,
+      confirmVerb: confirmVerb,
+      initialMl: initialMl,
+    ),
   );
 }
 
@@ -26,18 +41,36 @@ const List<int> _kSuggestedMl = <int>[150, 330, 750, 1000];
 /// sheets do: a controller disposed by the caller dies while the sheet is
 /// still animating out, and the still-mounted field rebuilds against it.
 class CustomWaterSheet extends StatefulWidget {
-  const CustomWaterSheet({super.key});
+  const CustomWaterSheet({
+    super.key,
+    this.title = 'Log water',
+    this.subtitle = 'Pick a common size or enter your own.',
+    this.confirmVerb = 'ADD',
+    this.initialMl,
+  });
+
+  final String title;
+  final String subtitle;
+  final String confirmVerb;
+
+  /// Pre-fills the field, for editing an existing preset.
+  final int? initialMl;
 
   @override
   State<CustomWaterSheet> createState() => _CustomWaterSheetState();
 }
 
 class _CustomWaterSheetState extends State<CustomWaterSheet> {
-  final TextEditingController _controller = TextEditingController();
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialMl == null ? '' : '${widget.initialMl}',
+  );
 
   @override
   void initState() {
     super.initState();
+    // Cursor at the end, so a pre-filled amount can be corrected directly.
+    _controller.selection =
+        TextSelection.collapsed(offset: _controller.text.length);
     // Rebuild on typing so the Add button and the hint track the value.
     _controller.addListener(_onChanged);
   }
@@ -90,12 +123,9 @@ class _CustomWaterSheetState extends State<CustomWaterSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('Log water', style: AppText.title),
+            Text(widget.title, style: AppText.title),
             const SizedBox(height: 4),
-            Text(
-              'Pick a common size or enter your own.',
-              style: AppText.caption,
-            ),
+            Text(widget.subtitle, style: AppText.caption),
             const SizedBox(height: 16),
             Wrap(
               spacing: 8,
@@ -188,7 +218,9 @@ class _CustomWaterSheetState extends State<CustomWaterSheet> {
             ),
             const SizedBox(height: 12),
             NeonButton(
-              label: _valid ? 'ADD ${formatWaterMl(ml!)}' : 'ADD',
+              label: _valid
+                  ? '${widget.confirmVerb} ${formatWaterMl(ml!)}'
+                  : widget.confirmVerb,
               height: 48,
               icon: Icons.water_drop_rounded,
               enabled: _valid,

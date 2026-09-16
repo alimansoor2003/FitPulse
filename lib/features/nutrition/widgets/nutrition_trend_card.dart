@@ -1,11 +1,11 @@
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/widgets/daily_target_bar_chart.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../../core/widgets/range_toggle.dart';
 import '../../../domain/nutrition.dart';
 import '../../../state/nutrition_providers.dart';
 import '../../../state/settings_controller.dart';
@@ -33,7 +33,7 @@ class NutritionTrendCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          _RangeToggle(
+          RangeToggle(
             selected: range,
             onSelect: (int days) =>
                 ref.read(nutritionRangeProvider.notifier).state = days,
@@ -53,7 +53,17 @@ class NutritionTrendCard extends ConsumerWidget {
             const SizedBox(height: 18),
             SizedBox(
               height: 150,
-              child: _CalorieChart(trend: trend, targets: targets),
+              child: DailyTargetBarChart(
+                target: targets.calories.toDouble(),
+                bars: <DailyBar>[
+                  for (final DailyNutrition d in trend.days)
+                    (
+                      day: d.day,
+                      value: d.calories.toDouble(),
+                      logged: d.isLogged,
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 6),
             Row(
@@ -76,60 +86,6 @@ class NutritionTrendCard extends ConsumerWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _RangeToggle extends StatelessWidget {
-  const _RangeToggle({required this.selected, required this.onSelect});
-
-  final int selected;
-  final ValueChanged<int> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    // Wrap rather than Row: two fixed-width chips overflow to the right at a
-    // large text scale, the same way the overload-step chips in Settings did.
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: <Widget>[
-        for (final (int days, String label) in const <(int, String)>[
-          (7, 'Last 7 days'),
-          (30, 'Last 30 days'),
-        ])
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onSelect(days);
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: days == selected ? AppColors.accentGradient : null,
-                color:
-                    days == selected ? null : Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: days == selected
-                      ? Colors.transparent
-                      : AppColors.glassBorder,
-                ),
-              ),
-              child: Text(
-                label,
-                style: sora(
-                  11,
-                  600,
-                  color: days == selected
-                      ? Colors.white
-                      : AppColors.textSecondary,
-                ),
-              ),
-            ),
-          ),
-      ],
     );
   }
 }
@@ -277,114 +233,6 @@ class _AverageMacro extends StatelessWidget {
           Text('${grams.round()} g', style: sora(15, 700)),
           Text('of ${target.round()}', style: AppText.caption),
         ],
-      ),
-    );
-  }
-}
-
-class _CalorieChart extends StatelessWidget {
-  const _CalorieChart({required this.trend, required this.targets});
-
-  final NutritionTrend trend;
-  final MacroTargets targets;
-
-  @override
-  Widget build(BuildContext context) {
-    final List<DailyNutrition> days = trend.days;
-    final double peak =
-        trend.peakCalories.toDouble() > targets.calories.toDouble()
-            ? trend.peakCalories.toDouble()
-            : targets.calories.toDouble();
-
-    // 30 bars cannot each carry a date, so label a handful of evenly spaced
-    // days and leave the rest bare.
-    final int labelStep = days.length <= 8 ? 1 : (days.length / 5).ceil();
-
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: peak * 1.2,
-        barTouchData: BarTouchData(enabled: false),
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          getDrawingHorizontalLine: (double value) => FlLine(
-            color: Colors.white.withOpacity(0.05),
-            strokeWidth: 1,
-          ),
-        ),
-        borderData: FlBorderData(show: false),
-        extraLinesData: ExtraLinesData(
-          horizontalLines: <HorizontalLine>[
-            HorizontalLine(
-              y: targets.calories.toDouble(),
-              color: AppColors.warning.withOpacity(0.55),
-              strokeWidth: 1.5,
-              dashArray: <int>[5, 4],
-            ),
-          ],
-        ),
-        titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(),
-          rightTitles: const AxisTitles(),
-          topTitles: const AxisTitles(),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 24,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                final int index = value.toInt();
-                if (index < 0 || index >= days.length) {
-                  return const SizedBox.shrink();
-                }
-                // Always label the newest day, then step backwards.
-                final bool label =
-                    (days.length - 1 - index) % labelStep == 0;
-                if (!label) return const SizedBox.shrink();
-                final DateTime d = days[index].day;
-                return Padding(
-                  padding: const EdgeInsets.only(top: 7),
-                  child: Text(
-                    '${d.day}/${d.month}',
-                    style: sora(8, 400, color: AppColors.textTertiary),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        barGroups: List<BarChartGroupData>.generate(days.length, (int i) {
-          final DailyNutrition d = days[i];
-          return BarChartGroupData(
-            x: i,
-            barRods: <BarChartRodData>[
-              BarChartRodData(
-                toY: d.calories.toDouble(),
-                width: days.length > 12 ? 6 : 13,
-                borderRadius: BorderRadius.circular(4),
-                // An unlogged day is drawn as an empty slot rather than as a
-                // zero-calorie day, so a gap in the record does not read as
-                // a day of not eating.
-                color: d.isLogged ? null : Colors.white.withOpacity(0.05),
-                gradient: d.isLogged
-                    ? const LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: <Color>[
-                          AppColors.neonBlue,
-                          AppColors.neonCyan,
-                        ],
-                      )
-                    : null,
-                backDrawRodData: BackgroundBarChartRodData(
-                  show: !d.isLogged,
-                  toY: peak * 0.04,
-                  color: Colors.white.withOpacity(0.07),
-                ),
-              ),
-            ],
-          );
-        }),
       ),
     );
   }

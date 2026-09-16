@@ -1,8 +1,10 @@
 import 'package:fitpulse/data/db/app_database.dart';
+import 'package:fitpulse/domain/hydration.dart';
 import 'package:fitpulse/domain/models.dart';
 import 'package:fitpulse/domain/nutrition.dart';
 import 'package:fitpulse/domain/progress_layout.dart';
 import 'package:fitpulse/features/history/history_screen.dart';
+import 'package:fitpulse/state/hydration_providers.dart';
 import 'package:fitpulse/state/nutrition_providers.dart';
 import 'package:fitpulse/state/progress_layout.dart';
 import 'package:fitpulse/state/providers.dart';
@@ -46,6 +48,9 @@ void main() {
         nutritionTrendProvider.overrideWith(
           (Ref ref) => Stream<NutritionTrend>.value(NutritionTrend.empty),
         ),
+        hydrationTrendProvider.overrideWith(
+          (Ref ref) => Stream<HydrationTrend>.value(HydrationTrend.empty),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -84,6 +89,7 @@ void main() {
           'macro_overview',
           'weekly_consistency',
           'volume_trend',
+          'hydration_trend',
           'one_rm_chart',
           'exercise_history',
         ],

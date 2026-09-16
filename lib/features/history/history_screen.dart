@@ -16,6 +16,7 @@ import '../../domain/models.dart';
 import '../../domain/progress_layout.dart';
 import '../../state/progress_layout.dart';
 import '../../state/providers.dart';
+import '../hydration/widgets/hydration_trend_card.dart';
 import '../nutrition/widgets/nutrition_trend_card.dart';
 import 'widgets/session_detail_sheet.dart';
 
@@ -40,6 +41,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         return Icons.bar_chart_rounded;
       case ProgressSection.macroOverview:
         return Icons.restaurant_rounded;
+      case ProgressSection.hydrationTrend:
+        return Icons.water_drop_rounded;
       case ProgressSection.oneRmChart:
         return Icons.trending_up_rounded;
       case ProgressSection.exerciseHistory:
@@ -71,6 +74,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           return _VolumeChartCard(sessions: sessions);
         case ProgressSection.macroOverview:
           return const NutritionTrendCard();
+        case ProgressSection.hydrationTrend:
+          return const HydrationTrendCard();
         case ProgressSection.oneRmChart:
           return _ProgressionCard(
             exercises: exercises,

@@ -13,6 +13,7 @@ void main() {
       final List<ProgressSection> order = progressOrderFrom(<String>[
         'exercise_history',
         'macro_overview',
+        'hydration_trend',
         'weekly_consistency',
         'one_rm_chart',
         'volume_trend',
@@ -21,10 +22,31 @@ void main() {
       expect(order, <ProgressSection>[
         ProgressSection.exerciseHistory,
         ProgressSection.macroOverview,
+        ProgressSection.hydrationTrend,
         ProgressSection.weeklyConsistency,
         ProgressSection.oneRmChart,
         ProgressSection.volumeTrend,
       ]);
+    });
+
+    test('a layout saved before hydration existed gains it at the end', () {
+      // The exact list a phone had on disk before this update.
+      final List<ProgressSection> order = progressOrderFrom(<String>[
+        'volume_trend',
+        'macro_overview',
+        'weekly_consistency',
+        'one_rm_chart',
+        'exercise_history',
+      ]);
+
+      expect(order.take(5), <ProgressSection>[
+        ProgressSection.volumeTrend,
+        ProgressSection.macroOverview,
+        ProgressSection.weeklyConsistency,
+        ProgressSection.oneRmChart,
+        ProgressSection.exerciseHistory,
+      ], reason: 'the saved arrangement is kept as it was');
+      expect(order.last, ProgressSection.hydrationTrend);
     });
 
     test('appends a section the saved order has never heard of', () {

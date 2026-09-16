@@ -7,6 +7,7 @@ enum ProgressSection {
   weeklyConsistency('weekly_consistency', 'Weekly Consistency'),
   volumeTrend('volume_trend', 'Session Volume'),
   macroOverview('macro_overview', 'Nutrition Trends'),
+  hydrationTrend('hydration_trend', 'Hydration Trends'),
   oneRmChart('one_rm_chart', 'Strength Progression'),
   exerciseHistory('exercise_history', 'All Sessions');
 

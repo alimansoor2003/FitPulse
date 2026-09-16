@@ -64,3 +64,11 @@ class FoodLogs extends Table {
   RealColumn get fatG => real().withDefault(const Constant(0))();
   DateTimeColumn get loggedAt => dateTime().withDefault(currentDateAndTime)();
 }
+
+/// One drink. Stored per drink rather than as a daily total, which is what
+/// makes "undo the last one" and a per-day trend possible.
+class WaterLogs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get amountMl => integer()();
+  DateTimeColumn get loggedAt => dateTime().withDefault(currentDateAndTime)();
+}

@@ -11,7 +11,9 @@ import 'tables.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: <Type>[Exercises, WorkoutSessions, SetLogs, FoodLogs])
+@DriftDatabase(
+  tables: <Type>[Exercises, WorkoutSessions, SetLogs, FoodLogs, WaterLogs],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -19,8 +21,9 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withExecutor(QueryExecutor executor) : super(executor);
 
   /// v1 -> v2 added [foodLogs] for the nutrition feature.
+  /// v2 -> v3 added [waterLogs] for hydration.
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -30,8 +33,13 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (Migrator m, int from, int to) async {
           // Additive only: an install that already holds real training data
           // just gains the new table, nothing is recreated or dropped.
+          // Each step is independent, so an install still on v1 gets both
+          // tables on its way to the current version.
           if (from < 2) {
             await m.createTable(foodLogs);
+          }
+          if (from < 3) {
+            await m.createTable(waterLogs);
           }
         },
         beforeOpen: (OpeningDetails details) async {
@@ -366,6 +374,41 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> clearFoodLogs() async {
     await delete(foodLogs).go();
+  }
+
+  // -------------------------------------------------------------- hydration
+
+  /// Every drink in [start, end), oldest first. Bucketed into days in Dart,
+  /// for the same reason as [watchFoodLogsBetween].
+  Stream<List<WaterLog>> watchWaterLogsBetween(DateTime start, DateTime end) {
+    return (select(waterLogs)
+          ..where((t) =>
+              t.loggedAt.isBiggerOrEqualValue(start) &
+              t.loggedAt.isSmallerThanValue(end))
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.loggedAt),
+            (t) => OrderingTerm.asc(t.id),
+          ]))
+        .watch();
+  }
+
+  Future<int> insertWaterLog(int amountMl, {DateTime? loggedAt}) {
+    return into(waterLogs).insert(
+      WaterLogsCompanion.insert(
+        amountMl: amountMl,
+        loggedAt: loggedAt == null
+            ? const Value<DateTime>.absent()
+            : Value<DateTime>(loggedAt),
+      ),
+    );
+  }
+
+  Future<void> deleteWaterLog(int id) async {
+    await (delete(waterLogs)..where((t) => t.id.equals(id))).go();
+  }
+
+  Future<void> clearWaterLogs() async {
+    await delete(waterLogs).go();
   }
 
   Future<void> clearHistory() async {

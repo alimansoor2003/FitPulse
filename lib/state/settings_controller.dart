@@ -20,6 +20,7 @@ class AppSettings {
     required this.weeklyGoal,
     required this.geminiApiKey,
     required this.macroTargets,
+    required this.waterGoalMl,
   });
 
   final String userName;
@@ -33,6 +34,14 @@ class AppSettings {
   /// Pasted by the user in Settings. Empty until they opt in to AI parsing.
   final String geminiApiKey;
   final MacroTargets macroTargets;
+
+  /// Daily hydration goal the Today ring fills against.
+  final int waterGoalMl;
+
+  static const int defaultWaterGoalMl = 2500;
+  static const int minWaterGoalMl = 500;
+  static const int maxWaterGoalMl = 6000;
+  static const int waterGoalStepMl = 250;
 
   /// Compiled in for developer builds with
   /// `flutter run --dart-define=GEMINI_API_KEY=...`. Never committed, and the
@@ -59,6 +68,7 @@ class AppSettings {
     weeklyGoal: 3,
     geminiApiKey: '',
     macroTargets: MacroTargets.fallback,
+    waterGoalMl: defaultWaterGoalMl,
   );
 
   AppSettings copyWith({
@@ -71,6 +81,7 @@ class AppSettings {
     int? weeklyGoal,
     String? geminiApiKey,
     MacroTargets? macroTargets,
+    int? waterGoalMl,
   }) {
     return AppSettings(
       userName: userName ?? this.userName,
@@ -82,6 +93,7 @@ class AppSettings {
       weeklyGoal: weeklyGoal ?? this.weeklyGoal,
       geminiApiKey: geminiApiKey ?? this.geminiApiKey,
       macroTargets: macroTargets ?? this.macroTargets,
+      waterGoalMl: waterGoalMl ?? this.waterGoalMl,
     );
   }
 }
@@ -99,6 +111,7 @@ class SettingsController extends Notifier<AppSettings> {
   static const String _kProtein = 'target_protein_g';
   static const String _kCarbs = 'target_carbs_g';
   static const String _kFat = 'target_fat_g';
+  static const String _kWater = 'target_water_ml';
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
@@ -120,6 +133,8 @@ class SettingsController extends Notifier<AppSettings> {
         carbsG: prefs.getDouble(_kCarbs) ?? MacroTargets.fallback.carbsG,
         fatG: prefs.getDouble(_kFat) ?? MacroTargets.fallback.fatG,
       ),
+      waterGoalMl:
+          prefs.getInt(_kWater) ?? AppSettings.defaultWaterGoalMl,
     );
   }
 
@@ -173,6 +188,18 @@ class SettingsController extends Notifier<AppSettings> {
       await _prefs.setString(_kGeminiKey, clean);
     }
     state = state.copyWith(geminiApiKey: clean);
+  }
+
+  /// Sets the daily water goal, snapped to the 250 ml step the stepper uses
+  /// and clamped to a range no one would reach by accident.
+  Future<void> setWaterGoal(int ml) async {
+    final int snapped = (ml / AppSettings.waterGoalStepMl).round() *
+        AppSettings.waterGoalStepMl;
+    final int clamped = snapped
+        .clamp(AppSettings.minWaterGoalMl, AppSettings.maxWaterGoalMl)
+        .toInt();
+    await _prefs.setInt(_kWater, clamped);
+    state = state.copyWith(waterGoalMl: clamped);
   }
 
   Future<void> setMacroTargets(MacroTargets targets) async {

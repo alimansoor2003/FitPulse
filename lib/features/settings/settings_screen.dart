@@ -12,7 +12,9 @@ import '../../core/widgets/glass_card.dart';
 import '../../core/widgets/neon_button.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/services/gemini_food_service.dart' show kGeminiKeyUrl;
+import '../../domain/hydration.dart';
 import '../../domain/nutrition.dart';
+import '../../state/hydration_providers.dart';
 import '../../state/nutrition_providers.dart';
 import '../../state/providers.dart';
 import '../../state/settings_controller.dart';
@@ -195,7 +197,7 @@ class SettingsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 24),
 
-        const SectionHeader(title: 'Nutrition'),
+        const SectionHeader(title: 'Nutrition & Hydration'),
         FadeIn(
           delay: const Duration(milliseconds: 120),
           child: GlassCard(
@@ -212,6 +214,19 @@ class SettingsScreen extends ConsumerWidget {
                       'F ${settings.macroTargets.fatG.round()} g',
                   onTap: () =>
                       _editTargets(context, ref, settings.macroTargets),
+                ),
+                const Divider(height: 18),
+                _StepperRow(
+                  title: 'Daily water goal',
+                  subtitle: 'The hydration ring fills against this',
+                  value: formatWaterMl(settings.waterGoalMl),
+                  valueWidth: 64,
+                  onMinus: () => controller.setWaterGoal(
+                    settings.waterGoalMl - AppSettings.waterGoalStepMl,
+                  ),
+                  onPlus: () => controller.setWaterGoal(
+                    settings.waterGoalMl + AppSettings.waterGoalStepMl,
+                  ),
                 ),
                 const Divider(height: 18),
                 _ActionRow(
@@ -297,6 +312,29 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const Divider(height: 18),
                 _ActionRow(
+                  icon: Icons.format_color_reset_rounded,
+                  title: 'Clear water log',
+                  subtitle: 'Removes every drink you have logged',
+                  onTap: () async {
+                    final bool ok = await showConfirmSheet(
+                      context,
+                      title: 'Clear the water log?',
+                      message:
+                          'Every drink you have logged will be deleted. '
+                          'Your workouts, food and goal stay untouched.',
+                      confirmLabel: 'Clear',
+                      icon: Icons.format_color_reset_rounded,
+                      destructive: true,
+                    );
+                    if (!ok) return;
+                    await ref
+                        .read(hydrationRepositoryProvider)
+                        .clearWaterLogs();
+                    HapticFeedback.mediumImpact();
+                  },
+                ),
+                const Divider(height: 18),
+                _ActionRow(
                   icon: Icons.restart_alt_rounded,
                   title: 'Reset routine to default',
                   subtitle: 'Restores the original 3-day split and clears logs',
@@ -359,6 +397,7 @@ class _StepperRow extends StatelessWidget {
     required this.value,
     required this.onMinus,
     required this.onPlus,
+    this.valueWidth = 38,
   });
 
   final String title;
@@ -366,6 +405,10 @@ class _StepperRow extends StatelessWidget {
   final String value;
   final VoidCallback onMinus;
   final VoidCallback onPlus;
+
+  /// Room for the value between the buttons. The default fits a single digit;
+  /// a volume like "2.5 L" needs more.
+  final double valueWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -385,8 +428,13 @@ class _StepperRow extends StatelessWidget {
           ),
           _RoundButton(icon: Icons.remove_rounded, onTap: onMinus),
           SizedBox(
-            width: 38,
-            child: Center(child: Text(value, style: sora(16, 700))),
+            width: valueWidth,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(value, maxLines: 1, style: sora(16, 700)),
+              ),
+            ),
           ),
           _RoundButton(icon: Icons.add_rounded, onTap: onPlus),
         ],

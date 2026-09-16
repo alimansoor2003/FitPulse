@@ -16,6 +16,7 @@ import '../../data/db/seed_data.dart';
 import '../../domain/models.dart';
 import '../../state/providers.dart';
 import '../../state/settings_controller.dart';
+import '../hydration/widgets/hydration_card.dart';
 import '../nutrition/widgets/macro_summary_card.dart';
 import '../workout/workout_screen.dart';
 
@@ -124,6 +125,13 @@ class HomeScreen extends ConsumerWidget {
         const FadeIn(
           delay: Duration(milliseconds: 110),
           child: MacroSummaryCard(),
+        ),
+        const SizedBox(height: 24),
+
+        const SectionHeader(title: 'Hydration'),
+        const FadeIn(
+          delay: Duration(milliseconds: 125),
+          child: HydrationCard(),
         ),
         const SizedBox(height: 24),
 

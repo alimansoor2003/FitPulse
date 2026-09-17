@@ -34,84 +34,100 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Read here: inside the scaffold the body no longer sees the keyboard.
+    final bool keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: AuroraBackground(
         child: SafeArea(
-          child: Column(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                child: Row(
+          // The scaffold shrinks the body to the space above the keyboard,
+          // which is shorter than the card. Scroll instead of overflowing; the
+          // hero takes whatever height is left.
+          child: CustomScrollView(
+            slivers: <Widget>[
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Column(
                   children: <Widget>[
-                    const _Wordmark(),
-                    const Spacer(),
-                    Text('v1.0', style: AppText.caption),
-                  ],
-                ),
-              ),
-              const Expanded(child: Center(child: _PulseHero())),
-              FadeIn(
-                delay: const Duration(milliseconds: 180),
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    left: 16,
-                    right: 16,
-                    bottom: 16 + MediaQuery.viewInsetsOf(context).bottom * 0.2,
-                  ),
-                  child: GlassCard(
-                    radius: 30,
-                    padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
-                    highlighted: true,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Container(
-                          width: 42,
-                          height: 4,
-                          margin: const EdgeInsets.only(bottom: 20),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.22),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        Text(
-                          'Train for\nFitness Success',
-                          style: AppText.display,
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Log every set, beat your last numbers, and let '
-                          'progressive overload do the rest. Everything stays '
-                          'on your phone.',
-                          style: AppText.body,
-                        ),
-                        const SizedBox(height: 22),
-                        _NameField(controller: _name),
-                        const SizedBox(height: 18),
-                        NeonButton(
-                          label: 'GET STARTED',
-                          icon: Icons.arrow_forward_rounded,
-                          onPressed: _start,
-                        ),
-                        const SizedBox(height: 12),
-                        Center(
-                          child: TextButton(
-                            onPressed: _start,
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.textSecondary,
-                            ),
-                            child: Text(
-                              'Skip for now',
-                              style: sora(13, 500,
-                                  color: AppColors.textSecondary),
-                            ),
-                          ),
-                        ),
-                      ],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                      child: Row(
+                        children: <Widget>[
+                          const _Wordmark(),
+                          const Spacer(),
+                          Text('v1.0', style: AppText.caption),
+                        ],
+                      ),
                     ),
-                  ),
+                    Expanded(
+                      // With the keyboard up there is no room for the rings.
+                      // Squeezed to almost no height, the painter drew its
+                      // tick ring around a zero radius: a starburst floating
+                      // over the card. Step aside instead.
+                      child: keyboardUp
+                          ? const SizedBox.shrink()
+                          : const Center(child: _PulseHero()),
+                    ),
+                    FadeIn(
+                      delay: const Duration(milliseconds: 180),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: GlassCard(
+                          radius: 30,
+                          padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+                          highlighted: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Container(
+                                width: 42,
+                                height: 4,
+                                margin: const EdgeInsets.only(bottom: 20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.22),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              Text(
+                                'Train for\nFitness Success',
+                                style: AppText.display,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Log every set, beat your last numbers, and '
+                                'let progressive overload do the rest. '
+                                'Everything stays on your phone.',
+                                style: AppText.body,
+                              ),
+                              const SizedBox(height: 22),
+                              _NameField(controller: _name),
+                              const SizedBox(height: 18),
+                              NeonButton(
+                                label: 'GET STARTED',
+                                icon: Icons.arrow_forward_rounded,
+                                onPressed: _start,
+                              ),
+                              const SizedBox(height: 12),
+                              Center(
+                                child: TextButton(
+                                  onPressed: _start,
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: AppColors.textSecondary,
+                                  ),
+                                  child: Text(
+                                    'Skip for now',
+                                    style: sora(13, 500,
+                                        color: AppColors.textSecondary),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -211,6 +227,12 @@ class _PulseHeroState extends State<_PulseHero>
 
   @override
   Widget build(BuildContext context) {
+    // On a short screen, shrink the whole hero evenly rather than flattening
+    // it.
+    return FittedBox(fit: BoxFit.scaleDown, child: _hero());
+  }
+
+  Widget _hero() {
     return AnimatedBuilder(
       animation: _controller,
       builder: (BuildContext context, Widget? child) {

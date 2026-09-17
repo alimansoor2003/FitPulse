@@ -19,6 +19,7 @@ import '../../state/settings_controller.dart';
 import '../hydration/widgets/hydration_card.dart';
 import '../nutrition/widgets/macro_summary_card.dart';
 import '../workout/workout_screen.dart';
+import 'widgets/day_tracker_strip.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -93,6 +94,11 @@ class HomeScreen extends ConsumerWidget {
       ),
       children: <Widget>[
         FadeIn(child: _Greeting(name: settings.userName, stats: stats)),
+        const SizedBox(height: 22),
+        const FadeIn(
+          delay: Duration(milliseconds: 40),
+          child: DayTrackerStrip(),
+        ),
         const SizedBox(height: 24),
 
         active.maybeWhen(
